@@ -1,0 +1,37 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme {
+  --color-primary: #25e2f4;
+  --color-background-dark: #102122;
+  --color-background-light: #f5f8f8;
+
+  --font-display: "Space Grotesk", sans-serif;
+
+  --radius: 0.5rem;
+  --radius-lg: 1rem;
+  --radius-xl: 1.5rem;
+}
+
+body {
+  font-family: "Space Grotesk", sans-serif;
+}
+
+.glass-panel {
+  background: rgba(24, 50, 52, 0.7);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(49, 99, 104, 0.5);
+}
+
+.bg-glow {
+  background: radial-gradient(
+    circle at center,
+    rgba(37, 226, 244, 0.15) 0%,
+    rgba(16, 33, 34, 0) 70%
+  );
+}
+
+.material-symbols-outlined {
+  font-variation-settings: "FILL" 0, "wght" 400, "GRAD" 0, "opsz" 24;
+}

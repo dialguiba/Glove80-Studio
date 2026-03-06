@@ -1,0 +1,32 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(node --version)",
+      "Bash(npm --version)",
+      "Bash(cargo --version)",
+      "Bash(rustup --version)",
+      "Bash(bun --version)",
+      "Bash(curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs)",
+      "Bash(sh -s -- -y)",
+      "Bash(source \"$HOME/.cargo/env\")",
+      "Bash(rustc --version)",
+      "Read(//Users/diego.aguirre02/dev/**)",
+      "Bash(bunx create-tauri-app glove80-tauri --template react --manager bun --yes)",
+      "Read(//private/tmp/**)",
+      "Bash(rm -rf glove80-tauri-tmp)",
+      "Bash(bunx create-tauri-app glove80-tauri-tmp --template react --manager bun --yes)",
+      "Bash(bun install)",
+      "Bash(bun run tauri build --debug)",
+      "Bash(export PATH=\"$HOME/.cargo/bin:$PATH\")",
+      "Bash(bun run tauri dev)",
+      "Bash(PATH=\"$HOME/.cargo/bin:$PATH\" bun run tauri dev)",
+      "Bash(echo $PATH)",
+      "WebSearch",
+      "WebFetch(domain:docs.moergo.com)",
+      "WebFetch(domain:my.glove80.com)",
+      "WebFetch(domain:my.moergo.com)",
+      "Bash(bun add -D tailwindcss @tailwindcss/vite)",
+      "Bash(cargo check)"
+    ]
+  }
+}
