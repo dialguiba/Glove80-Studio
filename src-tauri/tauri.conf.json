@@ -15,7 +15,8 @@
       {
         "title": "glove80-tauri-tmp",
         "width": 800,
-        "height": 600
+        "height": 600,
+        "visible": false
       }
     ],
     "security": {

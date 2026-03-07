@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useLayoutEffect, useCallback } from "react";
+import { useState, useEffect, useRef, useLayoutEffect, useCallback, useMemo } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
@@ -44,14 +44,42 @@ function parseKey(key) {
   return { label: paramStr ? `${base} ${paramStr}` : base };
 }
 
+// Build a reverse map: keyName -> [position indices] for a given layer
+function buildKeyMap(layer) {
+  const map = {};
+  layer.forEach((key, idx) => {
+    if (!key || typeof key !== "object") return;
+    if (key.value === "&kp" && key.params?.[0]) {
+      const name = String(key.params[0].value ?? "");
+      if (name) {
+        if (!map[name]) map[name] = [];
+        map[name].push(idx);
+      }
+    }
+  });
+  return map;
+}
+
+// Count how many pressed keys match a given layer
+function countMatches(pressedKeys, layer) {
+  const map = buildKeyMap(layer);
+  let count = 0;
+  pressedKeys.forEach((k) => { if (map[k]) count++; });
+  return count;
+}
+
 export default function WidgetView() {
   const [config, setConfig] = useState(null);
-  const [activeLayer, setActiveLayer] = useState(0);
+  const [userLayer, setUserLayer] = useState(0); // manually selected layer
+  const [autoLayer, setAutoLayer] = useState(null); // auto-detected layer
   const [error, setError] = useState(null);
   const [dragging, setDragging] = useState(false);
   const dragOffset = useRef({ x: 0, y: 0 });
   const containerRef = useRef(null);
   const [scale, setScale] = useState(1);
+  const [pressedKeys, setPressedKeys] = useState(new Set());
+
+  const activeLayer = autoLayer ?? userLayer;
 
   const loadConfig = useCallback(() => {
     invoke("get_active_layout_config")
@@ -64,6 +92,53 @@ export default function WidgetView() {
     const unlisten = listen("active-layout-changed", loadConfig);
     return () => { unlisten.then((f) => f()); };
   }, [loadConfig]);
+
+  // Global key event listeners
+  useEffect(() => {
+    const downUnlisten = listen("key-down", (e) => {
+      setPressedKeys((prev) => {
+        const next = new Set(prev);
+        next.add(e.payload);
+        return next;
+      });
+    });
+    const upUnlisten = listen("key-up", (e) => {
+      setPressedKeys((prev) => {
+        const next = new Set(prev);
+        next.delete(e.payload);
+        return next;
+      });
+    });
+    return () => {
+      downUnlisten.then((f) => f());
+      upUnlisten.then((f) => f());
+    };
+  }, []);
+
+  // Auto-detect active layer based on pressed keys
+  const layers = config?.config?.layers ?? [];
+  useEffect(() => {
+    if (pressedKeys.size === 0) {
+      setAutoLayer(null);
+      return;
+    }
+    if (layers.length <= 1) return;
+
+    // Find which layer has the most matches for currently pressed keys
+    let bestLayer = userLayer;
+    let bestCount = countMatches(pressedKeys, layers[userLayer] ?? []);
+
+    layers.forEach((layer, i) => {
+      if (i === userLayer) return;
+      const c = countMatches(pressedKeys, layer);
+      if (c > bestCount) {
+        bestCount = c;
+        bestLayer = i;
+      }
+    });
+
+    setAutoLayer(bestLayer !== userLayer ? bestLayer : null);
+  }, [pressedKeys, layers, userLayer]);
 
   useLayoutEffect(() => {
     if (!containerRef.current) return;
@@ -83,10 +158,19 @@ export default function WidgetView() {
     appWindow.startDragging();
   }
 
-  const layers = config?.config?.layers ?? [];
   const layerNames = config?.config?.layer_names ?? [];
   const currentLayer = layers[activeLayer] ?? [];
   const title = config?.layout_meta?.title;
+
+  // Build reverse map for current layer to find pressed positions
+  const keyMap = useMemo(() => buildKeyMap(currentLayer), [currentLayer]);
+  const pressedPositions = useMemo(() => {
+    const positions = new Set();
+    pressedKeys.forEach((k) => {
+      (keyMap[k] || []).forEach((pos) => positions.add(pos));
+    });
+    return positions;
+  }, [pressedKeys, keyMap]);
 
   return (
     <div
@@ -104,7 +188,7 @@ export default function WidgetView() {
           {layerNames.map((name, i) => (
             <button
               key={i}
-              onClick={() => setActiveLayer(i)}
+              onClick={() => { setUserLayer(i); setAutoLayer(null); }}
               className={`text-[10px] px-1.5 py-0.5 rounded transition-colors cursor-pointer ${
                 activeLayer === i
                   ? "bg-primary/20 text-primary"
@@ -143,19 +227,21 @@ export default function WidgetView() {
               const isEmpty = special === "∅";
               const isTransparent = special === "▽";
               const isLayer = type === "layer";
+              const isPressed = pressedPositions.has(i);
 
               return (
                 <div
                   key={i}
-                  className={`absolute rounded-sm border select-none flex items-center justify-center
+                  className={`absolute rounded-sm border select-none flex items-center justify-center transition-all duration-75
                     ${isEmpty ? "border-slate-700/15 bg-transparent text-slate-700" : ""}
                     ${isTransparent ? "border-slate-700/20 bg-slate-800/15 text-slate-600" : ""}
                     ${isLayer ? "border-emerald-500/30 bg-emerald-900/20 text-emerald-300" : ""}
                     ${!isEmpty && !isTransparent && !isLayer ? "border-slate-600/40 bg-slate-800/50 text-slate-200" : ""}
+                    ${isPressed ? "!border-primary !bg-primary/25 !text-white ring-1 ring-primary/60 brightness-125" : ""}
                   `}
                   style={{ left: pos[0], top: pos[1], width: 65, height: 65 }}
                 >
-                  <span className="leading-tight break-all px-0.5 text-center" style={{ fontSize: 10 }}>
+                  <span className="leading-tight break-all px-0.5 text-center" style={{ fontSize: 14 }}>
                     {special ?? label}
                   </span>
                 </div>

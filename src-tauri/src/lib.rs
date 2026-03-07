@@ -6,6 +6,59 @@ use tauri::{
     AppHandle, Emitter, Manager, State,
 };
 
+fn keycode_to_zmk(key: &device_query::Keycode) -> Option<&'static str> {
+    use device_query::Keycode::*;
+    Some(match key {
+        A => "A", B => "B", C => "C", D => "D", E => "E",
+        F => "F", G => "G", H => "H", I => "I", J => "J",
+        K => "K", L => "L", M => "M", N => "N", O => "O",
+        P => "P", Q => "Q", R => "R", S => "S", T => "T",
+        U => "U", V => "V", W => "W", X => "X", Y => "Y",
+        Z => "Z",
+        Key0 => "N0", Key1 => "N1", Key2 => "N2", Key3 => "N3", Key4 => "N4",
+        Key5 => "N5", Key6 => "N6", Key7 => "N7", Key8 => "N8", Key9 => "N9",
+        F1 => "F1", F2 => "F2", F3 => "F3", F4 => "F4", F5 => "F5",
+        F6 => "F6", F7 => "F7", F8 => "F8", F9 => "F9", F10 => "F10",
+        F11 => "F11", F12 => "F12",
+        Space => "SPACE",
+        Enter => "RET",
+        Tab => "TAB",
+        Escape => "ESC",
+        Backspace => "BSPC",
+        Delete => "DEL",
+        LShift => "LSHFT",
+        RShift => "RSHFT",
+        LControl => "LCTRL",
+        RControl => "RCTRL",
+        LAlt => "LALT",
+        RAlt => "RALT",
+        LMeta => "LGUI",
+        RMeta => "RGUI",
+        Up => "UP",
+        Down => "DOWN",
+        Left => "LEFT",
+        Right => "RIGHT",
+        Minus => "MINUS",
+        Equal => "EQUAL",
+        LeftBracket => "LBKT",
+        RightBracket => "RBKT",
+        Semicolon => "SEMI",
+        Apostrophe => "SQT",
+        Comma => "COMMA",
+        Dot => "DOT",
+        Slash => "FSLH",
+        BackSlash => "BSLH",
+        Grave => "GRAVE",
+        CapsLock => "CAPS",
+        Home => "HOME",
+        End => "END",
+        PageUp => "PG_UP",
+        PageDown => "PG_DN",
+        Insert => "INS",
+        _ => return None,
+    })
+}
+
 struct AppState {
     id_token: Mutex<Option<String>>,
     access_token: Mutex<Option<String>>,
@@ -387,7 +440,7 @@ pub fn run() {
             let state = app.state::<AppState>();
             load_session(app.handle(), &state);
 
-            let show = MenuItem::with_id(app, "show", "Mostrar ventana", true, None::<&str>)?;
+            let show = MenuItem::with_id(app, "show", "Abrir", true, None::<&str>)?;
             let quit = MenuItem::with_id(app, "quit", "Salir", true, None::<&str>)?;
             let menu = Menu::with_items(app, &[&show, &quit])?;
 
@@ -415,6 +468,46 @@ pub fn run() {
                     }
                 })
                 .build(app)?;
+
+            // Hide main window on close instead of destroying it
+            if let Some(main_win) = app.get_webview_window("main") {
+                let win = main_win.clone();
+                main_win.on_window_event(move |event| {
+                    if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                        api.prevent_close();
+                        let _ = win.hide();
+                    }
+                });
+            }
+
+            // Global key listener — polls keyboard state every ~16ms
+            let key_handle = app.handle().clone();
+            std::thread::spawn(move || {
+                use device_query::{DeviceQuery, DeviceState};
+                let device_state = DeviceState::new();
+                let mut prev_keys: Vec<device_query::Keycode> = vec![];
+                loop {
+                    let keys = device_state.get_keys();
+                    // Newly pressed
+                    for key in &keys {
+                        if !prev_keys.contains(key) {
+                            if let Some(zmk) = keycode_to_zmk(key) {
+                                let _ = key_handle.emit("key-down", zmk);
+                            }
+                        }
+                    }
+                    // Newly released
+                    for key in &prev_keys {
+                        if !keys.contains(key) {
+                            if let Some(zmk) = keycode_to_zmk(key) {
+                                let _ = key_handle.emit("key-up", zmk);
+                            }
+                        }
+                    }
+                    prev_keys = keys;
+                    std::thread::sleep(std::time::Duration::from_millis(16));
+                }
+            });
 
             Ok(())
         })

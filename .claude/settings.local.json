@@ -30,7 +30,9 @@
       "Bash(brew list)",
       "Bash(qlmanage -t -s 1024 -o /tmp icon-source.svg)",
       "Read(//tmp/**)",
-      "Bash(sips -g all /Users/diego.aguirre02/dev/glove80-tauri/src-tauri/icons/icon.icns)"
+      "Bash(sips -g all /Users/diego.aguirre02/dev/glove80-tauri/src-tauri/icons/icon.icns)",
+      "Bash(cargo check --manifest-path src-tauri/Cargo.toml)",
+      "Bash(npx vite build)"
     ]
   }
 }
