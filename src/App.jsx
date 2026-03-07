@@ -8,6 +8,7 @@ import LayoutConfigView from "./LayoutConfigView";
 
 function App() {
   const [authed, setAuthed] = useState(null); // null = checking
+  const [sessionExpired, setSessionExpired] = useState(false);
   const [layouts, setLayouts] = useState(null);
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -37,6 +38,15 @@ function App() {
     return () => unlisten.then((f) => f());
   }, []);
 
+  async function handleTokenExpired() {
+    await invoke("logout");
+    setAuthed(false);
+    setSessionExpired(true);
+    setLayouts(null);
+    setError(null);
+    handleBack();
+  }
+
   async function fetchLayouts() {
     setLoading(true);
     setError(null);
@@ -44,7 +54,11 @@ function App() {
       const data = await invoke("get_layouts");
       setLayouts(data);
     } catch (e) {
-      setError(String(e));
+      if (String(e).includes("TOKEN_EXPIRED")) {
+        await handleTokenExpired();
+      } else {
+        setError(String(e));
+      }
     } finally {
       setLoading(false);
     }
@@ -59,7 +73,11 @@ function App() {
       const data = await invoke("get_layout_config", { layoutId: id });
       setLayoutConfig(data);
     } catch (e) {
-      setConfigError(String(e));
+      if (String(e).includes("TOKEN_EXPIRED")) {
+        await handleTokenExpired();
+      } else {
+        setConfigError(String(e));
+      }
     } finally {
       setConfigLoading(false);
     }
@@ -89,7 +107,7 @@ function App() {
   }
 
   if (authed === null) return null; // verificando sesión
-  if (!authed) return <LoginView />;
+  if (!authed) return <LoginView sessionExpired={sessionExpired} />;
 
   if (selectedLayoutId) {
     return (

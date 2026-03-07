@@ -1,6 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 
-export default function LoginView() {
+export default function LoginView({ sessionExpired = false }) {
   return (
     <div className="min-h-screen bg-background-dark text-slate-100 flex items-center justify-center overflow-hidden">
       {/* Ambient background */}
@@ -9,6 +9,12 @@ export default function LoginView() {
       </div>
 
       <main className="relative z-10 w-full max-w-md px-6">
+        {sessionExpired && (
+          <div className="mb-4 flex items-center gap-2 bg-amber-500/10 border border-amber-500/30 text-amber-400 text-sm px-4 py-3 rounded-lg">
+            <span className="material-symbols-outlined text-base">warning</span>
+            <span>Your session has expired. Please log in again.</span>
+          </div>
+        )}
         <div className="glass-panel p-8 rounded-xl shadow-2xl flex flex-col gap-8">
           {/* Logo / Header */}
           <div className="flex flex-col items-center text-center gap-2">

@@ -26,12 +26,16 @@ async fn get_layouts(
         "https://my.moergo.com/api/glove80/layouts/v1/users/{}",
         user_id
     );
-    let list: serde_json::Value = client
+    let list_resp = client
         .get(&list_url)
         .header("Authorization", format!("Bearer {}", token))
         .send()
         .await
-        .map_err(|e| e.to_string())?
+        .map_err(|e| e.to_string())?;
+    if list_resp.status() == 401 {
+        return Err("TOKEN_EXPIRED".into());
+    }
+    let list: serde_json::Value = list_resp
         .json()
         .await
         .map_err(|e| e.to_string())?;
@@ -117,6 +121,9 @@ async fn get_layout_meta(
         .send()
         .await
         .map_err(|e| e.to_string())?;
+    if response.status() == 401 {
+        return Err("TOKEN_EXPIRED".into());
+    }
 
     let json = response
         .json::<serde_json::Value>()
@@ -143,6 +150,9 @@ async fn get_layout_config(
         .send()
         .await
         .map_err(|e| e.to_string())?;
+    if response.status() == 401 {
+        return Err("TOKEN_EXPIRED".into());
+    }
 
     let json = response
         .json::<serde_json::Value>()
@@ -270,6 +280,14 @@ async fn open_login(app: AppHandle) -> Result<(), String> {
     // Script that polls localStorage for Cognito tokens
     // user_id is extracted from the idToken's `sub` claim (same as Cognito GetUser response)
     let script = r#"
+        // Clear any existing tokens so the user must log in fresh
+        for (let i = localStorage.length - 1; i >= 0; i--) {
+            const key = localStorage.key(i);
+            if (key && (key.endsWith('.idToken') || key.endsWith('.accessToken'))) {
+                localStorage.removeItem(key);
+            }
+        }
+
         const _glove80Poll = setInterval(() => {
             let idToken = null;
             let accessToken = null;
@@ -288,11 +306,10 @@ async fn open_login(app: AppHandle) -> Result<(), String> {
                 clearInterval(_glove80Poll);
                 try {
                     const payload = JSON.parse(atob(idToken.split('.')[1]));
-                    const userId = payload.sub;
                     window.__TAURI_INTERNALS__.invoke('store_token', {
                         idToken,
                         accessToken: accessToken || '',
-                        userId,
+                        userId: payload.sub || '',
                     });
                 } catch(e) {
                     window.__TAURI_INTERNALS__.invoke('store_token', {
