@@ -189,6 +189,7 @@ export default function WidgetView() {
           {layerNames.map((name, i) => (
             <button
               key={i}
+              tabIndex={-1}
               onClick={() => { setUserLayer(i); setAutoLayer(null); }}
               className={`text-[10px] px-1.5 py-0.5 rounded transition-colors cursor-pointer ${
                 activeLayer === i
@@ -200,6 +201,7 @@ export default function WidgetView() {
             </button>
           ))}
           <button
+            tabIndex={-1}
             onClick={() => appWindow.hide()}
             className="ml-2 text-slate-500 hover:text-red-400 transition-colors cursor-pointer"
           >
