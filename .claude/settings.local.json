@@ -32,7 +32,11 @@
       "Read(//tmp/**)",
       "Bash(sips -g all /Users/diego.aguirre02/dev/glove80-tauri/src-tauri/icons/icon.icns)",
       "Bash(cargo check --manifest-path src-tauri/Cargo.toml)",
-      "Bash(npx vite build)"
+      "Bash(npx vite build)",
+      "Bash(npx tauri icon src-tauri/icons/icon.png)",
+      "Bash(sudo rm -rfv /Library/Caches/com.apple.iconservices.store)",
+      "Bash(sudo find /private/var/folders/ -name com.apple.dock.iconcache -exec rm -rfv {} +)",
+      "Bash(killall Dock)"
     ]
   }
 }
