@@ -1,0 +1,80 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#102122"/>
+      <stop offset="100%" style="stop-color:#0a1415"/>
+    </linearGradient>
+    <linearGradient id="key" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#25e2f4"/>
+      <stop offset="100%" style="stop-color:#1bb8c7"/>
+    </linearGradient>
+    <linearGradient id="key2" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#183234"/>
+      <stop offset="100%" style="stop-color:#122628"/>
+    </linearGradient>
+    <linearGradient id="glow" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#25e2f4;stop-opacity:0.15"/>
+      <stop offset="100%" style="stop-color:#102122;stop-opacity:0"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Background rounded square -->
+  <rect x="16" y="16" width="480" height="480" rx="96" ry="96" fill="url(#bg)"/>
+  <rect x="16" y="16" width="480" height="480" rx="96" ry="96" fill="url(#glow)"/>
+  <!-- Subtle border -->
+  <rect x="16" y="16" width="480" height="480" rx="96" ry="96" fill="none" stroke="#25e2f4" stroke-width="1.5" opacity="0.2"/>
+
+  <!-- Left half keyboard -->
+  <g transform="translate(60, 160) rotate(-8, 100, 100)">
+    <!-- Row 1 -->
+    <rect x="0" y="0" width="34" height="34" rx="6" fill="url(#key2)" stroke="#316368" stroke-width="1.5"/>
+    <rect x="40" y="0" width="34" height="34" rx="6" fill="url(#key2)" stroke="#316368" stroke-width="1.5"/>
+    <rect x="80" y="0" width="34" height="34" rx="6" fill="url(#key)" stroke="#1bb8c7" stroke-width="1.5"/>
+    <rect x="120" y="0" width="34" height="34" rx="6" fill="url(#key2)" stroke="#316368" stroke-width="1.5"/>
+    <rect x="160" y="0" width="34" height="34" rx="6" fill="url(#key2)" stroke="#316368" stroke-width="1.5"/>
+    <!-- Row 2 -->
+    <rect x="5" y="42" width="34" height="34" rx="6" fill="url(#key2)" stroke="#316368" stroke-width="1.5"/>
+    <rect x="45" y="42" width="34" height="34" rx="6" fill="url(#key2)" stroke="#316368" stroke-width="1.5"/>
+    <rect x="85" y="42" width="34" height="34" rx="6" fill="url(#key2)" stroke="#316368" stroke-width="1.5"/>
+    <rect x="125" y="42" width="34" height="34" rx="6" fill="url(#key)" stroke="#1bb8c7" stroke-width="1.5"/>
+    <rect x="165" y="42" width="34" height="34" rx="6" fill="url(#key2)" stroke="#316368" stroke-width="1.5"/>
+    <!-- Row 3 -->
+    <rect x="10" y="84" width="34" height="34" rx="6" fill="url(#key2)" stroke="#316368" stroke-width="1.5"/>
+    <rect x="50" y="84" width="34" height="34" rx="6" fill="url(#key)" stroke="#1bb8c7" stroke-width="1.5"/>
+    <rect x="90" y="84" width="34" height="34" rx="6" fill="url(#key2)" stroke="#316368" stroke-width="1.5"/>
+    <rect x="130" y="84" width="34" height="34" rx="6" fill="url(#key2)" stroke="#316368" stroke-width="1.5"/>
+    <rect x="170" y="84" width="34" height="34" rx="6" fill="url(#key2)" stroke="#316368" stroke-width="1.5"/>
+    <!-- Thumb cluster -->
+    <rect x="120" y="130" width="30" height="30" rx="6" fill="url(#key)" stroke="#1bb8c7" stroke-width="1.5" transform="rotate(15, 135, 145)"/>
+    <rect x="155" y="138" width="30" height="30" rx="6" fill="url(#key2)" stroke="#316368" stroke-width="1.5" transform="rotate(25, 170, 153)"/>
+  </g>
+
+  <!-- Right half keyboard (mirrored) -->
+  <g transform="translate(452, 160) scale(-1,1) rotate(-8, 100, 100)">
+    <!-- Row 1 -->
+    <rect x="0" y="0" width="34" height="34" rx="6" fill="url(#key2)" stroke="#316368" stroke-width="1.5"/>
+    <rect x="40" y="0" width="34" height="34" rx="6" fill="url(#key2)" stroke="#316368" stroke-width="1.5"/>
+    <rect x="80" y="0" width="34" height="34" rx="6" fill="url(#key2)" stroke="#316368" stroke-width="1.5"/>
+    <rect x="120" y="0" width="34" height="34" rx="6" fill="url(#key)" stroke="#1bb8c7" stroke-width="1.5"/>
+    <rect x="160" y="0" width="34" height="34" rx="6" fill="url(#key2)" stroke="#316368" stroke-width="1.5"/>
+    <!-- Row 2 -->
+    <rect x="5" y="42" width="34" height="34" rx="6" fill="url(#key2)" stroke="#316368" stroke-width="1.5"/>
+    <rect x="45" y="42" width="34" height="34" rx="6" fill="url(#key)" stroke="#1bb8c7" stroke-width="1.5"/>
+    <rect x="85" y="42" width="34" height="34" rx="6" fill="url(#key2)" stroke="#316368" stroke-width="1.5"/>
+    <rect x="125" y="42" width="34" height="34" rx="6" fill="url(#key2)" stroke="#316368" stroke-width="1.5"/>
+    <rect x="165" y="42" width="34" height="34" rx="6" fill="url(#key2)" stroke="#316368" stroke-width="1.5"/>
+    <!-- Row 3 -->
+    <rect x="10" y="84" width="34" height="34" rx="6" fill="url(#key2)" stroke="#316368" stroke-width="1.5"/>
+    <rect x="50" y="84" width="34" height="34" rx="6" fill="url(#key2)" stroke="#316368" stroke-width="1.5"/>
+    <rect x="90" y="84" width="34" height="34" rx="6" fill="url(#key2)" stroke="#316368" stroke-width="1.5"/>
+    <rect x="130" y="84" width="34" height="34" rx="6" fill="url(#key2)" stroke="#316368" stroke-width="1.5"/>
+    <rect x="170" y="84" width="34" height="34" rx="6" fill="url(#key)" stroke="#1bb8c7" stroke-width="1.5"/>
+    <!-- Thumb cluster -->
+    <rect x="120" y="130" width="30" height="30" rx="6" fill="url(#key2)" stroke="#316368" stroke-width="1.5" transform="rotate(15, 135, 145)"/>
+    <rect x="155" y="138" width="30" height="30" rx="6" fill="url(#key)" stroke="#1bb8c7" stroke-width="1.5" transform="rotate(25, 170, 153)"/>
+  </g>
+
+  <!-- Subtle connection between halves -->
+  <path d="M 240 280 Q 256 300 272 280" stroke="#25e2f4" stroke-width="2" fill="none" opacity="0.3"/>
+  <circle cx="256" cy="290" r="3" fill="#25e2f4" opacity="0.5"/>
+</svg>

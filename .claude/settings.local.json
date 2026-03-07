@@ -26,7 +26,11 @@
       "WebFetch(domain:my.glove80.com)",
       "WebFetch(domain:my.moergo.com)",
       "Bash(bun add -D tailwindcss @tailwindcss/vite)",
-      "Bash(cargo check)"
+      "Bash(cargo check)",
+      "Bash(brew list)",
+      "Bash(qlmanage -t -s 1024 -o /tmp icon-source.svg)",
+      "Read(//tmp/**)",
+      "Bash(sips -g all /Users/diego.aguirre02/dev/glove80-tauri/src-tauri/icons/icon.icns)"
     ]
   }
 }
