@@ -143,7 +143,8 @@ export default function WidgetView() {
   useLayoutEffect(() => {
     if (!containerRef.current) return;
     const observer = new ResizeObserver(([entry]) => {
-      setScale(entry.contentRect.width / CANVAS_W);
+      const { width, height } = entry.contentRect;
+      setScale(Math.min(width / CANVAS_W, height / CANVAS_H));
     });
     observer.observe(containerRef.current);
     return () => observer.disconnect();
@@ -208,7 +209,7 @@ export default function WidgetView() {
       </div>
 
       {/* Keyboard */}
-      <div ref={containerRef} className="flex-1 px-2 pb-2 overflow-hidden">
+      <div ref={containerRef} className="flex-1 px-2 pb-2 overflow-hidden flex items-center justify-center">
         {error && (
           <div className="flex items-center justify-center h-full text-slate-500 text-xs gap-1.5">
             <span className="material-symbols-outlined text-sm">error</span>
@@ -216,8 +217,9 @@ export default function WidgetView() {
           </div>
         )}
         {!error && currentLayer.length > 0 && (
+          <div style={{ width: CANVAS_W * scale, height: CANVAS_H * scale, position: "relative", flexShrink: 0 }}>
           <div
-            className="relative origin-top-left"
+            className="absolute top-0 left-0 origin-top-left"
             style={{ width: CANVAS_W, height: CANVAS_H, transform: `scale(${scale})` }}
           >
             {KEY_POSITIONS.map((pos, i) => {
@@ -247,6 +249,7 @@ export default function WidgetView() {
                 </div>
               );
             })}
+          </div>
           </div>
         )}
         {!error && currentLayer.length === 0 && !config && (
