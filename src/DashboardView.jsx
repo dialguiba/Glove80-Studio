@@ -1,4 +1,32 @@
+function toDate(val) {
+  if (!val) return null;
+  // Unix timestamp in seconds (number) or milliseconds
+  if (typeof val === "number") return new Date(val < 1e10 ? val * 1000 : val);
+  return new Date(val);
+}
+
+function relativeDate(val) {
+  const date = toDate(val);
+  if (!date || isNaN(date)) return null;
+  const rtf = new Intl.RelativeTimeFormat(undefined, { numeric: "auto" });
+  const diffSec = Math.round((date - Date.now()) / 1000);
+  const diffDays = Math.round(diffSec / 86400);
+  if (Math.abs(diffDays) < 1) return rtf.format(Math.round(diffSec / 3600), "hour");
+  if (Math.abs(diffDays) < 7) return rtf.format(diffDays, "day");
+  if (Math.abs(diffDays) < 30) return rtf.format(Math.round(diffDays / 7), "week");
+  if (Math.abs(diffDays) < 365) return rtf.format(Math.round(diffDays / 30), "month");
+  return rtf.format(Math.round(diffDays / 365), "year");
+}
+
 export default function DashboardView({ layouts, loading, error, onRefresh, onLogout, onSelectLayout, activeLayoutId, onSetActive }) {
+  const sortedLayouts = layouts
+    ? [...layouts].sort((a, b) => {
+        const aDate = (a.layout_meta ?? a).date ?? 0;
+        const bDate = (b.layout_meta ?? b).date ?? 0;
+        return bDate - aDate;
+      })
+    : layouts;
+
   return (
     <div className="min-h-screen bg-background-dark text-slate-100 flex flex-col items-center justify-start overflow-hidden">
       {/* Ambient background */}
@@ -48,18 +76,24 @@ export default function DashboardView({ layouts, loading, error, onRefresh, onLo
         )}
 
         {/* Layouts grid */}
-        {layouts && (
+        {sortedLayouts && (
           <div className="flex flex-col gap-3">
             <p className="text-slate-400 text-xs uppercase tracking-widest font-medium">
-              {layouts.length} layout{layouts.length !== 1 ? "s" : ""} found
+              {sortedLayouts.length} layout{sortedLayouts.length !== 1 ? "s" : ""} found
             </p>
             <div className="flex flex-col gap-2">
-              {layouts.map((l) => {
+              {sortedLayouts.map((l) => {
                 const meta = l.layout_meta ?? l;
                 const id = meta.uuid ?? l.id;
                 const name = meta.title ?? "(untitled)";
-                const updatedAt = meta.updated_at ?? meta.created_at ?? null;
+                const dateVal = meta.date ?? null;
+                const tags = Array.isArray(meta.tags) ? meta.tags : [];
                 const isActive = id === activeLayoutId;
+                const rel = relativeDate(dateVal);
+                const dateObj = toDate(dateVal);
+                const full = dateObj
+                  ? dateObj.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })
+                  : null;
 
                 return (
                   <div
@@ -69,7 +103,7 @@ export default function DashboardView({ layouts, loading, error, onRefresh, onLo
                       isActive ? "border-primary/50 bg-primary/5" : "hover:border-primary/40"
                     }`}
                   >
-                    <span className={`material-symbols-outlined text-xl shrink-0 ${isActive ? "text-primary" : "text-primary"}`}>
+                    <span className="material-symbols-outlined text-xl shrink-0 text-primary">
                       keyboard
                     </span>
                     <div className="flex-1 min-w-0">
@@ -81,7 +115,15 @@ export default function DashboardView({ layouts, loading, error, onRefresh, onLo
                           </span>
                         )}
                       </div>
-                      <p className="text-slate-500 text-xs font-mono mt-0.5">{id}</p>
+                      {tags.length > 0 && (
+                        <div className="flex flex-wrap gap-1 mt-1">
+                          {tags.map((tag) => (
+                            <span key={tag} className="text-[10px] px-1.5 py-0.5 rounded-full bg-slate-700/50 text-slate-400 border border-slate-600/30 leading-none">
+                              {tag}
+                            </span>
+                          ))}
+                        </div>
+                      )}
                     </div>
                     {!isActive && (
                       <button
@@ -94,14 +136,11 @@ export default function DashboardView({ layouts, loading, error, onRefresh, onLo
                         Set active
                       </button>
                     )}
-                    {updatedAt && (
-                      <p className="text-slate-500 text-xs shrink-0">
-                        {new Date(updatedAt).toLocaleDateString(undefined, {
-                          month: "short",
-                          day: "numeric",
-                          year: "numeric",
-                        })}
-                      </p>
+                    {rel && (
+                      <div className="text-right shrink-0" title={full ?? undefined}>
+                        <p className="text-slate-400 text-xs">{rel}</p>
+                        <p className="text-slate-600 text-[10px] mt-0.5">{full}</p>
+                      </div>
                     )}
                   </div>
                 );
@@ -111,7 +150,7 @@ export default function DashboardView({ layouts, loading, error, onRefresh, onLo
         )}
 
         {/* Empty state */}
-        {!loading && layouts && layouts.length === 0 && (
+        {!loading && sortedLayouts && sortedLayouts.length === 0 && (
           <div className="glass-panel rounded-xl p-10 flex flex-col items-center gap-3 text-slate-400">
             <span className="material-symbols-outlined text-4xl">keyboard_hide</span>
             <p className="text-sm">No layouts found</p>
