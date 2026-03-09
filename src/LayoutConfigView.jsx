@@ -1,4 +1,4 @@
-import { useState, useRef, useLayoutEffect } from "react";
+import { useState, useRef, useLayoutEffect, useEffect, useMemo } from "react";
 
 // Glove80 key positions on a 1255×560px canvas.
 // Each key is 65×65px, spaced 70px (5px gap).
@@ -69,7 +69,19 @@ function parseKey(key, layerNames = []) {
   return { label: paramStr ? `${base} ${paramStr}` : base };
 }
 
-function ScaledKeyboard({ layer, layerNames = [] }) {
+function findKeyPositions(layer, query, layerNames) {
+  if (!query || !query.trim()) return new Set();
+  const q = query.trim().toLowerCase();
+  const positions = new Set();
+  layer.forEach((key, i) => {
+    const parsed = parseKey(key, layerNames);
+    const text = (parsed.special ?? parsed.label ?? "").toLowerCase();
+    if (text === q) positions.add(i);
+  });
+  return positions;
+}
+
+function ScaledKeyboard({ layer, layerNames = [], highlightedPositions = new Set() }) {
   const containerRef = useRef(null);
   const [scale, setScale] = useState(1);
 
@@ -108,21 +120,23 @@ function ScaledKeyboard({ layer, layerNames = [] }) {
           const isTransparent = special === "▽";
           const isCustom = type === "custom";
           const isLayer = type === "layer";
+          const isHighlighted = highlightedPositions.has(i);
 
           return (
             <div
               key={i}
               className={`
                 absolute rounded-md border select-none transition-colors
-                ${isEmpty ? "border-slate-700/20 bg-transparent text-slate-700 flex items-center justify-center" : ""}
-                ${isTransparent ? "border-slate-700/30 bg-slate-800/20 text-slate-600 flex items-center justify-center" : ""}
-                ${isCustom ? "border-amber-500/40 bg-amber-900/30 text-amber-200 flex flex-col justify-between p-1" : ""}
-                ${isLayer ? "border-emerald-500/40 bg-emerald-900/30 text-emerald-200 flex flex-col justify-between p-1" : ""}
-                ${!isEmpty && !isTransparent && !isCustom && !isLayer ? "border-slate-600/50 bg-slate-800/70 text-slate-200 flex items-center justify-center hover:border-primary/50 hover:bg-slate-700/60" : ""}
+                ${isHighlighted ? "!border-amber-400/80 !bg-amber-500/25 !text-amber-100 ring-1 ring-amber-400/60 flex items-center justify-center" : ""}
+                ${!isHighlighted && isEmpty ? "border-slate-700/20 bg-transparent text-slate-700 flex items-center justify-center" : ""}
+                ${!isHighlighted && isTransparent ? "border-slate-700/30 bg-slate-800/20 text-slate-600 flex items-center justify-center" : ""}
+                ${!isHighlighted && isCustom ? "border-amber-500/40 bg-amber-900/30 text-amber-200 flex flex-col justify-between p-1" : ""}
+                ${!isHighlighted && isLayer ? "border-emerald-500/40 bg-emerald-900/30 text-emerald-200 flex flex-col justify-between p-1" : ""}
+                ${!isHighlighted && !isEmpty && !isTransparent && !isCustom && !isLayer ? "border-slate-600/50 bg-slate-800/70 text-slate-200 flex items-center justify-center hover:border-primary/50 hover:bg-slate-700/60" : ""}
               `}
               style={{ left: pos[0], top: pos[1], width: 65, height: 65 }}
             >
-              {(isCustom || isLayer) ? (
+              {!isHighlighted && (isCustom || isLayer) ? (
                 <>
                   <span
                     className={`leading-none font-medium ${isCustom ? "text-amber-400/80" : "text-emerald-400/80"}`}
@@ -149,12 +163,29 @@ function ScaledKeyboard({ layer, layerNames = [] }) {
 
 export default function LayoutConfigView({ config, loading, error, onBack, isActive, onSetActive }) {
   const [activeLayer, setActiveLayer] = useState(0);
+  const [keySearch, setKeySearch] = useState("");
 
   const meta = config?.layout_meta;
   const cfg = config?.config;
   const layerNames = cfg?.layer_names ?? [];
   const layers = cfg?.layers ?? [];
   const currentLayer = layers[activeLayer] ?? [];
+
+  // Compute search hits per layer
+  const searchHitsPerLayer = useMemo(() => {
+    if (!keySearch.trim()) return [];
+    return layers.map((layer) => findKeyPositions(layer, keySearch, layerNames));
+  }, [keySearch, layers, layerNames]);
+
+  const highlightedPositions = keySearch.trim() ? (searchHitsPerLayer[activeLayer] ?? new Set()) : new Set();
+
+  // Auto-navigate to first layer with hits when search changes
+  useEffect(() => {
+    if (!keySearch.trim()) return;
+    const firstHit = searchHitsPerLayer.findIndex((s) => s.size > 0);
+    if (firstHit >= 0 && firstHit !== activeLayer) setActiveLayer(firstHit);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [keySearch]);
 
   return (
     <div className="min-h-screen bg-background-dark text-slate-100 flex flex-col items-center justify-start overflow-hidden">
@@ -232,6 +263,30 @@ export default function LayoutConfigView({ config, loading, error, onBack, isAct
               </span>
             </div>
 
+            {/* Key search */}
+            {layerNames.length > 0 && (
+              <div className="relative flex items-center">
+                <span className="material-symbols-outlined text-slate-500 text-base absolute left-3 pointer-events-none">
+                  manage_search
+                </span>
+                <input
+                  type="text"
+                  value={keySearch}
+                  onChange={(e) => setKeySearch(e.target.value)}
+                  placeholder="Find key by label… (e.g. ESC, A, SPACE)"
+                  className="w-full glass-panel rounded-lg pl-9 pr-9 py-2.5 text-sm text-slate-100 placeholder-slate-500 bg-transparent border border-slate-700/50 focus:border-amber-400/40 focus:outline-none transition-colors"
+                />
+                {keySearch ? (
+                  <button
+                    onClick={() => setKeySearch("")}
+                    className="absolute right-3 text-slate-500 hover:text-slate-300 transition-colors cursor-pointer"
+                  >
+                    <span className="material-symbols-outlined text-base">close</span>
+                  </button>
+                ) : null}
+              </div>
+            )}
+
             {/* Layer selector + keyboard */}
             {layerNames.length > 0 && (
               <div className="flex gap-4 items-start">
@@ -239,28 +294,44 @@ export default function LayoutConfigView({ config, loading, error, onBack, isAct
                 {/* Layer selector */}
                 <div className="flex flex-col gap-1 shrink-0">
                   <p className="text-slate-500 text-xs uppercase tracking-widest font-medium mb-1">Layers</p>
-                  {layerNames.map((name, i) => (
-                    <button
-                      key={i}
-                      onClick={() => setActiveLayer(i)}
-                      className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium transition-colors cursor-pointer ${
-                        activeLayer === i
-                          ? "bg-primary/20 text-primary border border-primary/40"
-                          : "text-slate-400 border border-slate-700/40 hover:border-primary/30 hover:text-primary/80"
-                      }`}
-                    >
-                      <span className="text-xs font-mono w-4 text-center">{i}</span>
-                      <span className="truncate max-w-30">{name}</span>
-                    </button>
-                  ))}
+                  {layerNames.map((name, i) => {
+                    const hitCount = searchHitsPerLayer[i]?.size ?? 0;
+                    return (
+                      <button
+                        key={i}
+                        onClick={() => setActiveLayer(i)}
+                        className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium transition-colors cursor-pointer ${
+                          activeLayer === i
+                            ? "bg-primary/20 text-primary border border-primary/40"
+                            : hitCount > 0
+                            ? "text-amber-300 border border-amber-500/40 hover:border-amber-400/60"
+                            : "text-slate-400 border border-slate-700/40 hover:border-primary/30 hover:text-primary/80"
+                        }`}
+                      >
+                        <span className="text-xs font-mono w-4 text-center">{i}</span>
+                        <span className="truncate max-w-30">{name}</span>
+                        {hitCount > 0 && (
+                          <span className="ml-auto text-[10px] px-1.5 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30 leading-none font-medium">
+                            {hitCount}
+                          </span>
+                        )}
+                      </button>
+                    );
+                  })}
                 </div>
 
                 {/* Keyboard */}
                 <div className="flex-1 min-w-0 glass-panel rounded-xl p-3">
                   <p className="text-slate-500 text-xs uppercase tracking-widest font-medium mb-3">
                     Layer {activeLayer}: {layerNames[activeLayer]}
+                    {highlightedPositions.size > 0 && (
+                      <span className="ml-2 text-amber-400">{highlightedPositions.size} match{highlightedPositions.size !== 1 ? "es" : ""}</span>
+                    )}
+                    {keySearch.trim() && highlightedPositions.size === 0 && (
+                      <span className="ml-2 text-slate-600">no matches</span>
+                    )}
                   </p>
-                  <ScaledKeyboard layer={currentLayer} layerNames={layerNames} />
+                  <ScaledKeyboard layer={currentLayer} layerNames={layerNames} highlightedPositions={highlightedPositions} />
                 </div>
               </div>
             )}

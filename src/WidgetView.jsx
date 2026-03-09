@@ -160,6 +160,19 @@ function scoreLayer(pressedKeys, layerMap, baseMap) {
   return Math.round((matches / keyCount) * 1000) + exclusive * 5000;
 }
 
+function findKeyPositionsWidget(layer, query, layerNames) {
+  if (!query || !query.trim()) return new Set();
+  const q = query.trim().toLowerCase();
+  const positions = new Set();
+  layer.forEach((key, i) => {
+    if (!key || typeof key !== "object") return;
+    const parsed = parseKey(key, layerNames);
+    const text = (parsed.special ?? parsed.label ?? "").toLowerCase();
+    if (text === q) positions.add(i);
+  });
+  return positions;
+}
+
 export default function WidgetView() {
   const [config, setConfig] = useState(null);
   const [userLayer, setUserLayer] = useState(0); // manually selected layer
@@ -170,6 +183,9 @@ export default function WidgetView() {
   const containerRef = useRef(null);
   const [scale, setScale] = useState(1);
   const [pressedKeys, setPressedKeys] = useState(new Set());
+  const [keySearch, setKeySearch] = useState("");
+  const [showSearch, setShowSearch] = useState(false);
+  const searchInputRef = useRef(null);
 
   const activeLayer = autoLayer ?? userLayer;
 
@@ -299,6 +315,47 @@ export default function WidgetView() {
     return positions;
   }, [pressedKeys, keyMap, autoLayer, userLayer, baseLayer, layerNames]);
 
+  // Key search hits
+  const searchHitsPerLayer = useMemo(() => {
+    if (!keySearch.trim()) return [];
+    return layers.map((layer) => findKeyPositionsWidget(layer, keySearch, layerNames));
+  }, [keySearch, layers, layerNames]);
+
+  const highlightedPositions = keySearch.trim() ? (searchHitsPerLayer[activeLayer] ?? new Set()) : new Set();
+
+  // Total hits across all layers
+  const totalSearchHits = searchHitsPerLayer.reduce((sum, s) => sum + (s?.size ?? 0), 0);
+
+  // Auto-navigate to first layer with hits
+  useEffect(() => {
+    if (!keySearch.trim()) return;
+    const firstHit = searchHitsPerLayer.findIndex((s) => s && s.size > 0);
+    if (firstHit >= 0 && firstHit !== userLayer) {
+      setUserLayer(firstHit);
+      setAutoLayer(null);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [keySearch]);
+
+  // Focus search input when shown
+  useEffect(() => {
+    if (showSearch && searchInputRef.current) searchInputRef.current.focus();
+  }, [showSearch]);
+
+  // Navigate to next layer with search results
+  function goNextSearchLayer() {
+    if (!keySearch.trim()) return;
+    const start = (activeLayer + 1) % layers.length;
+    for (let offset = 0; offset < layers.length; offset++) {
+      const idx = (start + offset) % layers.length;
+      if (searchHitsPerLayer[idx]?.size > 0) {
+        setUserLayer(idx);
+        setAutoLayer(null);
+        break;
+      }
+    }
+  }
+
   return (
     <div
       onMouseDown={handleMouseDown}
@@ -306,42 +363,101 @@ export default function WidgetView() {
       style={{ cursor: dragging ? "grabbing" : "default" }}
     >
       {/* Titlebar */}
-      <div className="flex items-center justify-between px-3 py-1.5 shrink-0">
-        <div className="flex items-center gap-2 min-w-0">
-          <span className="material-symbols-outlined text-primary text-sm">keyboard_alt</span>
-          <span className="text-xs font-medium text-slate-300 truncate">{title ?? "No active layout"}</span>
-        </div>
-        <div className="flex items-center gap-1">
-          {layerNames.map((name, i) => (
+      <div className="flex flex-col shrink-0">
+        <div className="flex items-center justify-between px-3 py-1.5">
+          <div className="flex items-center gap-2 min-w-0">
+            <span className="material-symbols-outlined text-primary text-sm">keyboard_alt</span>
+            <span className="text-xs font-medium text-slate-300 truncate">{title ?? "No active layout"}</span>
+          </div>
+          <div className="flex items-center gap-1">
+            {layerNames.map((name, i) => {
+              const hitCount = searchHitsPerLayer[i]?.size ?? 0;
+              return (
+                <button
+                  key={i}
+                  tabIndex={-1}
+                  onClick={() => { setUserLayer(i); setAutoLayer(null); }}
+                  className={`text-[10px] px-1.5 py-0.5 rounded transition-colors cursor-pointer relative ${
+                    activeLayer === i
+                      ? "bg-primary/20 text-primary"
+                      : hitCount > 0
+                      ? "text-amber-300 bg-amber-500/10"
+                      : "text-slate-500 hover:text-slate-300"
+                  }`}
+                >
+                  {name}
+                  {hitCount > 0 && (
+                    <span className="absolute -top-1 -right-1 text-[8px] w-3.5 h-3.5 flex items-center justify-center rounded-full bg-amber-500 text-black font-bold leading-none">
+                      {hitCount > 9 ? "9+" : hitCount}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
             <button
-              key={i}
               tabIndex={-1}
-              onClick={() => { setUserLayer(i); setAutoLayer(null); }}
-              className={`text-[10px] px-1.5 py-0.5 rounded transition-colors cursor-pointer ${
-                activeLayer === i
-                  ? "bg-primary/20 text-primary"
-                  : "text-slate-500 hover:text-slate-300"
-              }`}
+              onClick={() => { setShowSearch((v) => !v); if (showSearch) setKeySearch(""); }}
+              className={`ml-1 transition-colors cursor-pointer ${showSearch ? "text-amber-400" : "text-slate-500 hover:text-slate-300"}`}
+              title="Find key"
             >
-              {name}
+              <span className="material-symbols-outlined text-sm">manage_search</span>
             </button>
-          ))}
-          <button
-            tabIndex={-1}
-            onClick={() => { invoke("show_main_window"); appWindow.hide(); }}
-            className="ml-2 text-slate-500 hover:text-primary transition-colors cursor-pointer"
-            title="Open app"
-          >
-            <span className="material-symbols-outlined text-sm">open_in_new</span>
-          </button>
-          <button
-            tabIndex={-1}
-            onClick={() => appWindow.hide()}
-            className="text-slate-500 hover:text-red-400 transition-colors cursor-pointer"
-          >
-            <span className="material-symbols-outlined text-sm">close</span>
-          </button>
+            <button
+              tabIndex={-1}
+              onClick={() => { invoke("show_main_window"); appWindow.hide(); }}
+              className="ml-1 text-slate-500 hover:text-primary transition-colors cursor-pointer"
+              title="Open app"
+            >
+              <span className="material-symbols-outlined text-sm">open_in_new</span>
+            </button>
+            <button
+              tabIndex={-1}
+              onClick={() => appWindow.hide()}
+              className="text-slate-500 hover:text-red-400 transition-colors cursor-pointer"
+            >
+              <span className="material-symbols-outlined text-sm">close</span>
+            </button>
+          </div>
         </div>
+        {showSearch && (
+          <div className="px-3 pb-1.5 flex items-center gap-1.5" onMouseDown={(e) => e.stopPropagation()}>
+            <div className="relative flex-1 flex items-center">
+              <span className="material-symbols-outlined text-slate-500 text-xs absolute left-2 pointer-events-none">search</span>
+              <input
+                ref={searchInputRef}
+                type="text"
+                value={keySearch}
+                onChange={(e) => setKeySearch(e.target.value)}
+                placeholder="Find key…"
+                className="w-full rounded px-6 py-0.5 text-xs text-slate-100 placeholder-slate-600 bg-slate-800/60 border border-slate-700/50 focus:border-amber-400/50 focus:outline-none transition-colors"
+              />
+              {keySearch && (
+                <button
+                  tabIndex={-1}
+                  onClick={() => setKeySearch("")}
+                  className="absolute right-1.5 text-slate-500 hover:text-slate-300 cursor-pointer"
+                >
+                  <span className="material-symbols-outlined text-xs">close</span>
+                </button>
+              )}
+            </div>
+            {keySearch.trim() && totalSearchHits > 0 && (
+              <button
+                tabIndex={-1}
+                onClick={goNextSearchLayer}
+                className="text-[10px] px-1.5 py-0.5 rounded border border-amber-500/40 text-amber-300 hover:bg-amber-500/10 cursor-pointer shrink-0 transition-colors"
+                title="Next layer with results"
+              >
+                next ›
+              </button>
+            )}
+            {keySearch.trim() && (
+              <span className="text-[10px] text-slate-500 shrink-0">
+                {totalSearchHits > 0 ? `${totalSearchHits} found` : "no matches"}
+              </span>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Keyboard */}
@@ -366,16 +482,18 @@ export default function WidgetView() {
               const isTransparent = special === "▽";
               const isLayer = type === "layer";
               const isPressed = pressedPositions.has(i);
+              const isHighlighted = !isPressed && highlightedPositions.has(i);
 
               return (
                 <div
                   key={i}
                   className={`absolute rounded-sm border select-none flex items-center justify-center transition-all duration-75
-                    ${isEmpty ? "border-slate-700/15 bg-transparent text-slate-700" : ""}
-                    ${isTransparent ? "border-slate-700/20 bg-slate-800/15 text-slate-600" : ""}
-                    ${isLayer && !isPressed ? "border-emerald-500/30 bg-emerald-900/20 text-emerald-300" : ""}
-                    ${!isEmpty && !isTransparent && !isLayer ? "border-slate-600/40 bg-slate-800/50 text-slate-200" : ""}
+                    ${!isPressed && !isHighlighted && isEmpty ? "border-slate-700/15 bg-transparent text-slate-700" : ""}
+                    ${!isPressed && !isHighlighted && isTransparent ? "border-slate-700/20 bg-slate-800/15 text-slate-600" : ""}
+                    ${!isPressed && !isHighlighted && isLayer ? "border-emerald-500/30 bg-emerald-900/20 text-emerald-300" : ""}
+                    ${!isPressed && !isHighlighted && !isEmpty && !isTransparent && !isLayer ? "border-slate-600/40 bg-slate-800/50 text-slate-200" : ""}
                     ${isPressed ? "!border-primary !bg-primary/25 !text-white ring-1 ring-primary/60 brightness-125" : ""}
+                    ${isHighlighted ? "!border-amber-400/80 !bg-amber-500/20 !text-amber-100 ring-1 ring-amber-400/50" : ""}
                   `}
                   style={{ left: pos[0], top: pos[1], width: 65, height: 65 }}
                 >
