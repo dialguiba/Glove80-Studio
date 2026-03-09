@@ -57,6 +57,11 @@ src-tauri/              # Rust backend
 └── tauri.conf.json     # App configuration
 ```
 
+## TODO
+
+- [ ] Map remaining unmapped keys to human-readable labels
+- [ ] Fix key hover descriptions (tooltips) to show accurate information
+
 ## License
 
 MIT
