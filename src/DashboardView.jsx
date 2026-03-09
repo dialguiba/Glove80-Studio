@@ -27,11 +27,12 @@ function LayoutCard({ id, name, tags, rel, full, isActive, isPinned, onSelect, o
   const [menuOpen, setMenuOpen] = useState(false);
   const [menuPos, setMenuPos] = useState({ top: 0, right: 0 });
   const btnRef = useRef(null);
+  const menuRef = useRef(null);
 
   useEffect(() => {
     if (!menuOpen) return;
     function handleClick(e) {
-      if (!btnRef.current?.contains(e.target)) setMenuOpen(false);
+      if (!btnRef.current?.contains(e.target) && !menuRef.current?.contains(e.target)) setMenuOpen(false);
     }
     document.addEventListener("mousedown", handleClick);
     return () => document.removeEventListener("mousedown", handleClick);
@@ -46,8 +47,8 @@ function LayoutCard({ id, name, tags, rel, full, isActive, isPinned, onSelect, o
   return (
     <div
       onClick={onSelect}
-      className={`group glass-panel rounded-xl px-4 py-3 flex items-center gap-3 transition-colors cursor-pointer ${
-        isActive ? "border-primary/50 bg-primary/5" : "hover:border-slate-600/60"
+      className={`relative group glass-panel rounded-xl px-4 py-3 flex items-center gap-3 transition-colors cursor-pointer ${
+        isActive ? "border-primary/50 bg-primary/5" : isPinned ? "border-amber-400/30" : "hover:border-slate-600/60"
       }`}
     >
       <span className="material-symbols-outlined text-xl shrink-0 text-primary">keyboard</span>
@@ -57,6 +58,11 @@ function LayoutCard({ id, name, tags, rel, full, isActive, isPinned, onSelect, o
           {isActive && (
             <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-primary/15 text-primary border border-primary/25 font-medium leading-none">
               Active
+            </span>
+          )}
+          {isPinned && (
+            <span className="material-symbols-outlined text-amber-400 leading-none" style={{ fontSize: 14, fontVariationSettings: "'FILL' 1" }}>
+              star
             </span>
           )}
         </div>
@@ -88,6 +94,7 @@ function LayoutCard({ id, name, tags, rel, full, isActive, isPinned, onSelect, o
         </button>
         {menuOpen && createPortal(
           <div
+            ref={menuRef}
             className="fixed z-[9999] min-w-[160px] bg-slate-900 rounded-lg border border-slate-700/60 shadow-2xl py-1 flex flex-col"
             style={{ top: menuPos.top, right: menuPos.right }}
           >
