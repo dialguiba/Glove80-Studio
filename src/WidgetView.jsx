@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useLayoutEffect, useCallback, useMemo } fr
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
+import ZMK_KEY_LABELS from "./zmkKeyLabels";
 
 // Glove80 key positions (1255×565 canvas, 65×65 keys, 70px spacing).
 // Order matches ZMK physical layout: rows 0–3 (left+right), then row 4 left,
@@ -39,6 +40,19 @@ const KEY_POSITIONS = [
 const CANVAS_W = 1255;
 const CANVAS_H = 565;
 
+// Resolve a ZMK key name to a human-readable label.
+// Returns string or { primary, shifted } for dual-legend keys.
+function humanLabel(name) {
+  if (!name) return name;
+  const lookup = (n) => {
+    const v = ZMK_KEY_LABELS[n];
+    if (!v) return null;
+    if (Array.isArray(v)) return { primary: v[0], shifted: v[1] };
+    return v;
+  };
+  return lookup(name) ?? lookup(stripModifiers(name)) ?? name;
+}
+
 function parseKey(key, layerNames = []) {
   if (!key || typeof key !== "object") return { label: String(key) };
   const val = key.value ?? "";
@@ -46,7 +60,14 @@ function parseKey(key, layerNames = []) {
   if (val === "&trans") return { special: "▽" };
   if (val === "&none") return { special: "∅" };
   if (val === "&kp") {
-    const paramStr = params.map((p) => String(p.value ?? "")).filter(Boolean).join(" ");
+    const resolved = params.length === 1 ? humanLabel(String(params[0].value ?? "")) : null;
+    if (resolved && typeof resolved === "object" && resolved.primary) {
+      return { label: resolved.primary, shifted: resolved.shifted };
+    }
+    const paramStr = params.map((p) => {
+      const r = humanLabel(String(p.value ?? ""));
+      return (typeof r === "object") ? r.primary : r;
+    }).filter(Boolean).join(" ");
     return { label: paramStr || val.replace(/^&/, "") };
   }
   if (val === "&mo" || val === "&sl" || val === "&lt" || val === "&tog" || val === "&to") {
@@ -60,8 +81,76 @@ function parseKey(key, layerNames = []) {
   if (layerNames.some((n) => n.toLowerCase() === base.toLowerCase())) {
     return { label: base, type: "layer" };
   }
-  const paramStr = params.map((p) => String(p.value ?? "")).filter(Boolean).join(" ");
+  const paramStr = params.map((p) => {
+    const r = humanLabel(String(p.value ?? ""));
+    return (typeof r === "object") ? r.primary : r;
+  }).filter(Boolean).join(" ");
   return { label: paramStr ? `${base} ${paramStr}` : base };
+}
+
+// Generate a human-readable tooltip for a key based on its ZMK behavior
+function getKeyTooltip(key, layerNames = []) {
+  if (!key || typeof key !== "object") return null;
+  const val = key.value ?? "";
+  const params = key.params ?? [];
+  const p = (i) => String(params[i]?.value ?? "");
+
+  const layerLabel = (idx) => {
+    const n = parseInt(idx);
+    return !isNaN(n) && layerNames[n] ? `"${layerNames[n]}" (${n})` : idx;
+  };
+
+  switch (val) {
+    case "&kp":    return `Key Press: ${p(0)}`;
+    case "&trans": return "Transparent — passes through to the next active layer";
+    case "&none":  return "No Operation — blocks any key press";
+    case "&mt":    return `Mod-Tap — hold: ${p(0)}, tap: ${p(1)}`;
+    case "&lt":    return `Layer-Tap — hold: layer ${layerLabel(p(0))}, tap: ${p(1)}`;
+    case "&mo":    return `Momentary Layer — active while held: ${layerLabel(p(0))}`;
+    case "&tog":   return `Toggle Layer — enables/disables: ${layerLabel(p(0))}`;
+    case "&to":    return `To Layer — switch to ${layerLabel(p(0))}, disable all others`;
+    case "&sl":    return `Sticky Layer — activates ${layerLabel(p(0))} until next key`;
+    case "&sk":    return `Sticky Key — stays pressed until next key: ${p(0)}`;
+    case "&kt":    return `Key Toggle — toggles hold of: ${p(0)}`;
+    case "&gresc": return "Grave Escape — Escape normally, backtick (`) with Shift or GUI";
+    case "&caps_word": return "Caps Word — like Caps Lock but auto-disables on non-word keys";
+    case "&key_repeat": return "Key Repeat — resends last pressed key";
+    case "&sys_reset":  return "System Reset — reboots the keyboard firmware";
+    case "&bootloader": return "Bootloader — enter bootloader/DFU mode for flashing";
+    case "&soft_off":   return "Soft Off — turn the keyboard off";
+    case "&studio_unlock": return "Studio Unlock — unlock device for ZMK Studio configuration";
+    case "&mkp": return `Mouse Button Press: ${p(0)}`;
+    case "&mmv": return `Mouse Move: ${p(0)}`;
+    case "&msc": return `Mouse Scroll: ${p(0)}`;
+    case "&bt": {
+      const cmd = p(0);
+      if (cmd === "BT_SEL") return `Bluetooth — select profile ${p(1)}`;
+      if (cmd === "BT_PRV") return "Bluetooth — previous profile";
+      if (cmd === "BT_NXT") return "Bluetooth — next profile";
+      if (cmd === "BT_CLR") return "Bluetooth — clear current profile bond";
+      if (cmd === "BT_DISC") return `Bluetooth — disconnect profile ${p(1)}`;
+      return `Bluetooth: ${params.map((x) => x.value).join(" ")}`;
+    }
+    case "&out": {
+      const cmd = p(0);
+      if (cmd === "OUT_USB") return "Output — switch to USB";
+      if (cmd === "OUT_BLE") return "Output — switch to Bluetooth";
+      if (cmd === "OUT_TOG") return "Output — toggle USB/Bluetooth";
+      return `Output: ${p(0)}`;
+    }
+    case "&rgb_ug": return `RGB Underglow: ${params.map((x) => x.value).join(" ")}`;
+    case "&bl":     return `Backlight: ${p(0)}`;
+    case "&ext_power": return `External Power: ${p(0)}`;
+    default: {
+      // Named custom behaviors (e.g. &magic, &lower, &bt_0)
+      const base = val.replace(/^&/, "");
+      const paramStr = params.map((x) => String(x.value ?? "")).filter(Boolean).join(" ");
+      // If it matches a layer name, describe as layer switch
+      const matchedLayer = layerNames.findIndex((n) => n.toLowerCase() === base.toLowerCase());
+      if (matchedLayer >= 0) return `Layer behavior — "${layerNames[matchedLayer]}"`;
+      return paramStr ? `${base}: ${paramStr}` : base;
+    }
+  }
 }
 
 // Strip ZMK modifier wrappers: LS(X), RS(X), LC(X), RC(X), LA(X), RA(X), LG(X), RG(X)
@@ -167,8 +256,9 @@ function findKeyPositionsWidget(layer, query, layerNames) {
   layer.forEach((key, i) => {
     if (!key || typeof key !== "object") return;
     const parsed = parseKey(key, layerNames);
-    const text = (parsed.special ?? parsed.label ?? "").toLowerCase();
-    if (text === q) positions.add(i);
+    const primary = (parsed.special ?? parsed.label ?? "").toLowerCase();
+    const shifted = (parsed.shifted ?? "").toLowerCase();
+    if (primary === q || shifted === q) positions.add(i);
   });
   return positions;
 }
@@ -186,6 +276,7 @@ export default function WidgetView() {
   const [keySearch, setKeySearch] = useState("");
   const [showSearch, setShowSearch] = useState(false);
   const searchInputRef = useRef(null);
+  const [hoveredTooltip, setHoveredTooltip] = useState(null); // { text, x, y }
 
   const activeLayer = autoLayer ?? userLayer;
 
@@ -477,7 +568,8 @@ export default function WidgetView() {
             {KEY_POSITIONS.map((pos, i) => {
               const key = currentLayer[i];
               const parsed = key ? parseKey(key, layerNames) : { label: "" };
-              const { special, label, type } = parsed;
+              const { special, label, shifted, type } = parsed;
+              const tooltip = key ? getKeyTooltip(key, layerNames) : null;
               const isEmpty = special === "∅";
               const isTransparent = special === "▽";
               const isLayer = type === "layer";
@@ -496,10 +588,22 @@ export default function WidgetView() {
                     ${isHighlighted ? "!border-amber-400/80 !bg-amber-500/20 !text-amber-100 ring-1 ring-amber-400/50" : ""}
                   `}
                   style={{ left: pos[0], top: pos[1], width: 65, height: 65 }}
+                  onMouseEnter={tooltip ? (e) => {
+                    const rect = e.currentTarget.getBoundingClientRect();
+                    setHoveredTooltip({ text: tooltip, x: rect.left + rect.width / 2, y: rect.top });
+                  } : undefined}
+                  onMouseLeave={tooltip ? () => setHoveredTooltip(null) : undefined}
                 >
-                  <span className="leading-tight break-all px-0.5 text-center" style={{ fontSize: 14 }}>
-                    {special ?? label}
-                  </span>
+                  {shifted ? (
+                    <span className="flex flex-col items-center leading-none px-0.5 gap-1">
+                      <span className="text-slate-400" style={{ fontSize: 13 }}>{shifted}</span>
+                      <span style={{ fontSize: 16 }}>{label}</span>
+                    </span>
+                  ) : (
+                    <span className="leading-tight break-all px-0.5 text-center" style={{ fontSize: 14 }}>
+                      {special ?? label}
+                    </span>
+                  )}
                 </div>
               );
             })}
@@ -512,6 +616,20 @@ export default function WidgetView() {
           </div>
         )}
       </div>
+
+      {/* Key tooltip overlay */}
+      {hoveredTooltip && (
+        <div
+          className="fixed z-50 pointer-events-none px-2 py-1 rounded text-[11px] text-slate-100 bg-slate-900/95 border border-slate-600/60 shadow-lg max-w-[220px] text-center leading-tight"
+          style={{
+            left: hoveredTooltip.x,
+            top: hoveredTooltip.y - 8,
+            transform: "translate(-50%, -100%)",
+          }}
+        >
+          {hoveredTooltip.text}
+        </div>
+      )}
     </div>
   );
 }

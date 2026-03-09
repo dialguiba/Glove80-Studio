@@ -1,4 +1,5 @@
 import { useState, useRef, useLayoutEffect, useEffect, useMemo } from "react";
+import ZMK_KEY_LABELS from "./zmkKeyLabels";
 
 // Glove80 key positions on a 1255×560px canvas.
 // Each key is 65×65px, spaced 70px (5px gap).
@@ -39,6 +40,19 @@ const KEY_POSITIONS = [
 const CANVAS_W = 1255;
 const CANVAS_H = 565;
 
+function humanLabel(name) {
+  if (!name) return name;
+  const lookup = (n) => {
+    const v = ZMK_KEY_LABELS[n];
+    if (!v) return null;
+    if (Array.isArray(v)) return { primary: v[0], shifted: v[1] };
+    return v;
+  };
+  let s = name;
+  while (/^[LR][SACG]\(/.test(s) && s.endsWith(")")) s = s.slice(3, -1);
+  return lookup(name) ?? lookup(s) ?? name;
+}
+
 function parseKey(key, layerNames = []) {
   if (!key || typeof key !== "object") return { label: String(key) };
   const val = key.value ?? "";
@@ -65,8 +79,22 @@ function parseKey(key, layerNames = []) {
   }
   const paramStr = params.map((p) => String(p.value ?? "")).filter(Boolean).join(" ");
   // For &kp, the behavior name adds no info — just show the keycode
-  if (val === "&kp") return { label: paramStr || base };
-  return { label: paramStr ? `${base} ${paramStr}` : base };
+  if (val === "&kp") {
+    const resolved = params.length === 1 ? humanLabel(String(params[0].value ?? "")) : null;
+    if (resolved && typeof resolved === "object" && resolved.primary) {
+      return { label: resolved.primary, shifted: resolved.shifted };
+    }
+    const kpLabel = params.map((p) => {
+      const r = humanLabel(String(p.value ?? ""));
+      return (typeof r === "object") ? r.primary : r;
+    }).filter(Boolean).join(" ");
+    return { label: kpLabel || base };
+  }
+  const humanParams = params.map((p) => {
+    const r = humanLabel(String(p.value ?? ""));
+    return (typeof r === "object") ? r.primary : r;
+  }).filter(Boolean).join(" ");
+  return { label: humanParams ? `${base} ${humanParams}` : base };
 }
 
 function findKeyPositions(layer, query, layerNames) {
@@ -114,7 +142,7 @@ function ScaledKeyboard({ layer, layerNames = [], highlightedPositions = new Set
         {KEY_POSITIONS.map((pos, i) => {
           const key = layer[i];
           const parsed = key ? parseKey(key, layerNames) : { label: "" };
-          const { special, badge, label, type } = parsed;
+          const { special, badge, label, shifted, type } = parsed;
 
           const isEmpty = special === "∅";
           const isTransparent = special === "▽";
@@ -148,6 +176,11 @@ function ScaledKeyboard({ layer, layerNames = [], highlightedPositions = new Set
                     {label}
                   </span>
                 </>
+              ) : shifted ? (
+                <span className="flex flex-col items-center leading-none px-0.5 gap-0.5">
+                  <span className="text-slate-400" style={{ fontSize: 10 }}>{shifted}</span>
+                  <span style={{ fontSize: 12 }}>{label}</span>
+                </span>
               ) : (
                 <span className="leading-tight break-all px-1 text-center" style={{ fontSize: 11 }}>
                   {special ?? label}
