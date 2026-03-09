@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
 
@@ -29,6 +30,19 @@ export default function DashboardView({ layouts, loading, error, onRefresh, onLo
         return bDate - aDate;
       })
     : layouts;
+
+  const [searchQuery, setSearchQuery] = useState("");
+
+  const filteredLayouts = sortedLayouts
+    ? sortedLayouts.filter((l) => {
+        if (!searchQuery.trim()) return true;
+        const meta = l.layout_meta ?? l;
+        const title = (meta.title ?? "").toLowerCase();
+        const tags = Array.isArray(meta.tags) ? meta.tags.join(" ").toLowerCase() : "";
+        const q = searchQuery.toLowerCase();
+        return title.includes(q) || tags.includes(q);
+      })
+    : sortedLayouts;
 
   return (
     <div className="min-h-screen bg-background-dark text-slate-100 flex flex-col items-center justify-start overflow-hidden">
@@ -78,6 +92,29 @@ export default function DashboardView({ layouts, loading, error, onRefresh, onLo
           </div>
         </div>
 
+        {/* Search */}
+        <div className="relative flex items-center">
+          <span className="material-symbols-outlined text-slate-500 text-base absolute left-3 pointer-events-none">
+            search
+          </span>
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Search by name or tag…"
+            className="w-full glass-panel rounded-lg pl-9 pr-9 py-2.5 text-sm text-slate-100 placeholder-slate-500 bg-transparent border border-slate-700/50 focus:border-primary/40 focus:outline-none focus:ring-0 transition-colors"
+          />
+          {searchQuery && (
+            <button
+              onClick={() => setSearchQuery("")}
+              className="absolute right-3 text-slate-500 hover:text-slate-300 transition-colors cursor-pointer"
+              aria-label="Clear search"
+            >
+              <span className="material-symbols-outlined text-base">close</span>
+            </button>
+          )}
+        </div>
+
         {/* Error */}
         {error && (
           <div className="glass-panel rounded-lg px-4 py-3 text-red-400 text-sm flex items-center gap-2">
@@ -90,10 +127,12 @@ export default function DashboardView({ layouts, loading, error, onRefresh, onLo
         {sortedLayouts && (
           <div className="flex flex-col gap-3">
             <p className="text-slate-400 text-xs uppercase tracking-widest font-medium">
-              {sortedLayouts.length} layout{sortedLayouts.length !== 1 ? "s" : ""} found
+              {searchQuery.trim()
+                ? `${filteredLayouts.length} of ${sortedLayouts.length} layout${sortedLayouts.length !== 1 ? "s" : ""} found`
+                : `${sortedLayouts.length} layout${sortedLayouts.length !== 1 ? "s" : ""} found`}
             </p>
             <div className="flex flex-col gap-2">
-              {sortedLayouts.map((l) => {
+              {filteredLayouts.map((l) => {
                 const meta = l.layout_meta ?? l;
                 const id = meta.uuid ?? l.id;
                 const name = meta.title ?? "(untitled)";
@@ -161,10 +200,10 @@ export default function DashboardView({ layouts, loading, error, onRefresh, onLo
         )}
 
         {/* Empty state */}
-        {!loading && sortedLayouts && sortedLayouts.length === 0 && (
+        {!loading && sortedLayouts && filteredLayouts.length === 0 && (
           <div className="glass-panel rounded-xl p-10 flex flex-col items-center gap-3 text-slate-400">
             <span className="material-symbols-outlined text-4xl">keyboard_hide</span>
-            <p className="text-sm">No layouts found</p>
+            <p className="text-sm">{searchQuery.trim() ? "No layouts match your search" : "No layouts found"}</p>
           </div>
         )}
 
