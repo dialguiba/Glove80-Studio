@@ -57,6 +57,10 @@ src-tauri/              # Rust backend
 └── tauri.conf.json     # App configuration
 ```
 
+## Limitations
+
+- **No layer-switch key detection** — The app detects regular keypresses but cannot detect special layer-switching keys (e.g., `mo`, `tog`, `to`). These are handled at the firmware level and are invisible to the OS. Adding support for this would require an extra layer of complexity that may not be worth the effort.
+
 ## TODO
 
 - [ ] Map remaining unmapped keys to human-readable labels
