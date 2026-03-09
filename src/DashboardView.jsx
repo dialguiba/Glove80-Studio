@@ -23,15 +23,20 @@ function relativeDate(val) {
 }
 
 export default function DashboardView({ layouts, loading, error, onRefresh, onLogout, onSelectLayout, activeLayoutId, onSetActive }) {
+  const [searchQuery, setSearchQuery] = useState("");
+  const [sortBy, setSortBy] = useState("date");
+
   const sortedLayouts = layouts
     ? [...layouts].sort((a, b) => {
-        const aDate = (a.layout_meta ?? a).date ?? 0;
-        const bDate = (b.layout_meta ?? b).date ?? 0;
-        return bDate - aDate;
+        const aMeta = a.layout_meta ?? a;
+        const bMeta = b.layout_meta ?? b;
+        if (sortBy === "name") {
+          return (aMeta.title ?? "").localeCompare(bMeta.title ?? "");
+        }
+        // date (default): newest first
+        return (bMeta.date ?? 0) - (aMeta.date ?? 0);
       })
     : layouts;
-
-  const [searchQuery, setSearchQuery] = useState("");
 
   const filteredLayouts = sortedLayouts
     ? sortedLayouts.filter((l) => {
@@ -126,11 +131,37 @@ export default function DashboardView({ layouts, loading, error, onRefresh, onLo
         {/* Layouts grid */}
         {sortedLayouts && (
           <div className="flex flex-col gap-3">
-            <p className="text-slate-400 text-xs uppercase tracking-widest font-medium">
-              {searchQuery.trim()
-                ? `${filteredLayouts.length} of ${sortedLayouts.length} layout${sortedLayouts.length !== 1 ? "s" : ""} found`
-                : `${sortedLayouts.length} layout${sortedLayouts.length !== 1 ? "s" : ""} found`}
-            </p>
+            <div className="flex items-center justify-between">
+              <p className="text-slate-400 text-xs uppercase tracking-widest font-medium">
+                {searchQuery.trim()
+                  ? `${filteredLayouts.length} of ${sortedLayouts.length} layout${sortedLayouts.length !== 1 ? "s" : ""} found`
+                  : `${sortedLayouts.length} layout${sortedLayouts.length !== 1 ? "s" : ""} found`}
+              </p>
+              <div className="flex items-center gap-1">
+                <button
+                  onClick={() => setSortBy("date")}
+                  className={`flex items-center gap-1 text-xs px-2.5 py-1 rounded-lg border transition-colors cursor-pointer ${
+                    sortBy === "date"
+                      ? "border-primary/40 text-primary bg-primary/5"
+                      : "border-slate-700/50 text-slate-500 hover:text-slate-300 hover:border-slate-600"
+                  }`}
+                >
+                  <span className="material-symbols-outlined text-sm">schedule</span>
+                  Date
+                </button>
+                <button
+                  onClick={() => setSortBy("name")}
+                  className={`flex items-center gap-1 text-xs px-2.5 py-1 rounded-lg border transition-colors cursor-pointer ${
+                    sortBy === "name"
+                      ? "border-primary/40 text-primary bg-primary/5"
+                      : "border-slate-700/50 text-slate-500 hover:text-slate-300 hover:border-slate-600"
+                  }`}
+                >
+                  <span className="material-symbols-outlined text-sm">sort_by_alpha</span>
+                  Name
+                </button>
+              </div>
+            </div>
             <div className="flex flex-col gap-2">
               {filteredLayouts.map((l) => {
                 const meta = l.layout_meta ?? l;
