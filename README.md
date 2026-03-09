@@ -61,6 +61,7 @@ src-tauri/              # Rust backend
 
 - [ ] Map remaining unmapped keys to human-readable labels
 - [ ] Fix key hover descriptions (tooltips) to show accurate information
+- [ ] Add splash screen on app startup
 
 ## License
 
