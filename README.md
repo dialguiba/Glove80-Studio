@@ -1,5 +1,13 @@
 # Glove80 Tauri
 
+![alt text](image.png)
+
+![alt text](image-1.png)
+
+![alt text](image-2.png)
+
+![alt text](image-3.png)
+
 A desktop companion app for managing and visualizing [MoErgo Glove80](https://www.moergo.com/) keyboard layouts.
 
 ![Tauri](https://img.shields.io/badge/Tauri-2-blue)
