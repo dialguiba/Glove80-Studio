@@ -3,48 +3,43 @@ import { useState, useRef, useLayoutEffect } from "react";
 // Glove80 key positions on a 1255×560px canvas.
 // Each key is 65×65px, spaced 70px (5px gap).
 // Format: [left, top]
+// Glove80 key positions (1255×565 canvas, 65×65 keys, 70px spacing).
+// Order matches ZMK physical layout: rows 0–3 (left+right), then row 4 left,
+// upper thumb (3L+3R interleaved), row 4 right, row 5 left,
+// lower thumb (3L+3R interleaved), row 5 right.
 const KEY_POSITIONS = [
-  // Row 0: function keys — 5 left + 5 right (0–9)
+  // Row 0: ceiling — 5L + 5R (0–9)
   [0,35],[70,35],[140,0],[210,0],[280,0],
   [910,0],[980,0],[1050,0],[1120,35],[1190,35],
-
-  // Row 1: number row — 6 left + 6 right (10–21)
+  // Row 1: number — 6L + 6R (10–21)
   [0,105],[70,105],[140,70],[210,70],[280,70],[350,70],
   [840,70],[910,70],[980,70],[1050,70],[1120,105],[1190,105],
-
-  // Row 2: upper alpha — 6 left + 6 right (22–33)
+  // Row 2: top alpha — 6L + 6R (22–33)
   [0,175],[70,175],[140,140],[210,140],[280,140],[350,140],
   [840,140],[910,140],[980,140],[1050,140],[1120,175],[1190,175],
-
-  // Row 3: home row — 6 left + 6 right (34–45)
+  // Row 3: home — 6L + 6R (34–45)
   [0,245],[70,245],[140,210],[210,210],[280,210],[350,210],
   [840,210],[910,210],[980,210],[1050,210],[1120,245],[1190,245],
-
-  // Row 4: bottom alpha left — 6 keys (46–51)
+  // Row 4 left: bottom — 6 keys (46–51)
   [0,315],[70,315],[140,280],[210,280],[280,280],[350,280],
-
-  // Row 5: extra bottom left — 5 keys (52–56)
-  [0,385],[70,385],[140,350],[210,350],[280,350],
-
-  // Row 4: bottom alpha right — 6 keys (57–62)
-  [840,280],[910,280],[980,280],[1050,280],[1120,315],[1190,315],
-
-  // Row 5: extra bottom right — 5 keys (63–67)
-  [910,350],[980,350],[1050,350],[1120,385],[1190,385],
-
-  // Left thumb cluster — 6 keys (68–73)
+  // Upper thumb: 3L outer→inner + 3R inner→outer (52–57)
   [385,370],[455,400],[525,425],
-  [385,440],[455,470],[525,495],
-
-  // Right thumb cluster — 6 keys (74–79)
-  [625,495],[695,470],[765,440],
   [625,425],[695,400],[765,370],
+  // Row 4 right: bottom — 6 keys (58–63)
+  [840,280],[910,280],[980,280],[1050,280],[1120,315],[1190,315],
+  // Row 5 left: floor — 5 keys (64–68)
+  [0,385],[70,385],[140,350],[210,350],[280,350],
+  // Lower thumb: 3L outer→inner + 3R inner→outer (69–74)
+  [385,440],[455,470],[525,495],
+  [625,495],[695,470],[765,440],
+  // Row 5 right: floor — 5 keys (75–79)
+  [910,350],[980,350],[1050,350],[1120,385],[1190,385],
 ];
 
 const CANVAS_W = 1255;
 const CANVAS_H = 565;
 
-function parseKey(key) {
+function parseKey(key, layerNames = []) {
   if (!key || typeof key !== "object") return { label: String(key) };
   const val = key.value ?? "";
   const params = key.params ?? [];
@@ -54,19 +49,27 @@ function parseKey(key) {
     const paramVal = params[0]?.value ?? "";
     return { badge: "Custom", label: paramVal, type: "custom" };
   }
-  if (val === "&mo" || val === "&sl" || val === "&lt" || val === "&tog") {
-    const badgeMap = { "&mo": "Mom. Layer", "&sl": "Sticky Layer", "&lt": "Layer Tap", "&tog": "Toggle" };
+  if (val === "&mo" || val === "&sl" || val === "&lt" || val === "&tog" || val === "&to") {
+    const badgeMap = { "&mo": "Mom. Layer", "&sl": "Sticky Layer", "&lt": "Layer Tap", "&tog": "Toggle", "&to": "To Layer" };
     const paramVal = params.map((p) => String(p.value ?? "")).filter(Boolean).join(" ");
-    return { badge: badgeMap[val] ?? val.replace(/^&/, ""), label: paramVal, type: "layer" };
+    // Resolve layer index to name if possible
+    const layerIdx = parseInt(paramVal, 10);
+    const resolvedLabel = (!isNaN(layerIdx) && layerNames[layerIdx]) ? layerNames[layerIdx] : paramVal;
+    return { badge: badgeMap[val] ?? val.replace(/^&/, ""), label: resolvedLabel, type: "layer" };
+  }
+  const base = val.replace(/^&/, "");
+  // Detect layer-switch behaviors that match a layer name (e.g. &lower, &magic)
+  const matchedIdx = layerNames.findIndex((n) => n.toLowerCase() === base.toLowerCase());
+  if (matchedIdx >= 0) {
+    return { badge: "Layer", label: layerNames[matchedIdx], type: "layer" };
   }
   const paramStr = params.map((p) => String(p.value ?? "")).filter(Boolean).join(" ");
-  const base = val.replace(/^&/, "");
   // For &kp, the behavior name adds no info — just show the keycode
   if (val === "&kp") return { label: paramStr || base };
   return { label: paramStr ? `${base} ${paramStr}` : base };
 }
 
-function ScaledKeyboard({ layer }) {
+function ScaledKeyboard({ layer, layerNames = [] }) {
   const containerRef = useRef(null);
   const [scale, setScale] = useState(1);
 
@@ -98,7 +101,7 @@ function ScaledKeyboard({ layer }) {
         {/* Keys */}
         {KEY_POSITIONS.map((pos, i) => {
           const key = layer[i];
-          const parsed = key ? parseKey(key) : { label: "" };
+          const parsed = key ? parseKey(key, layerNames) : { label: "" };
           const { special, badge, label, type } = parsed;
 
           const isEmpty = special === "∅";
@@ -257,7 +260,7 @@ export default function LayoutConfigView({ config, loading, error, onBack, isAct
                   <p className="text-slate-500 text-xs uppercase tracking-widest font-medium mb-3">
                     Layer {activeLayer}: {layerNames[activeLayer]}
                   </p>
-                  <ScaledKeyboard layer={currentLayer} />
+                  <ScaledKeyboard layer={currentLayer} layerNames={layerNames} />
                 </div>
               </div>
             )}

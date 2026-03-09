@@ -1,3 +1,6 @@
+import { invoke } from "@tauri-apps/api/core";
+import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
+
 function toDate(val) {
   if (!val) return null;
   // Unix timestamp in seconds (number) or milliseconds
@@ -47,6 +50,14 @@ export default function DashboardView({ layouts, loading, error, onRefresh, onLo
             </div>
           </div>
           <div className="flex items-center gap-2">
+            <button
+              onClick={() => { invoke("toggle_widget"); getCurrentWebviewWindow().hide(); }}
+              className="flex items-center gap-1.5 text-sm font-medium px-4 py-2 rounded-lg border border-slate-600/40 text-slate-400 hover:text-primary hover:border-primary/30 hover:bg-primary/5 transition-colors cursor-pointer"
+              title="Toggle widget overlay"
+            >
+              <span className="material-symbols-outlined text-base">widgets</span>
+              Widget
+            </button>
             <button
               onClick={onRefresh}
               disabled={loading}

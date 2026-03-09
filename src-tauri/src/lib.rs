@@ -6,6 +6,40 @@ use tauri::{
     AppHandle, Emitter, Manager, State,
 };
 
+/// On macOS, device_query misses modifier keys and CGEventSourceKeyState
+/// doesn't reliably distinguish L/R Option. Instead we use CGEventSourceFlagsState
+/// and check the NX device-specific modifier bits (from IOLLEvent.h) which do
+/// preserve L/R distinction from the physical HID device.
+#[cfg(target_os = "macos")]
+fn macos_modifier_zmk_keys() -> Vec<(&'static str, &'static str)> {
+    #[link(name = "CoreGraphics", kind = "framework")]
+    extern "C" {
+        fn CGEventSourceFlagsState(stateID: i32) -> u64;
+    }
+    const COMBINED: i32 = 1;
+    // NX device-specific modifier masks embedded in CGEventFlags (IOLLEvent.h)
+    const NX_L_CTRL:  u64 = 0x00000001;
+    const NX_L_SHIFT: u64 = 0x00000002;
+    const NX_R_SHIFT: u64 = 0x00000004;
+    const NX_L_CMD:   u64 = 0x00000008;
+    const NX_R_CMD:   u64 = 0x00000010;
+    const NX_L_ALT:   u64 = 0x00000020;
+    const NX_R_ALT:   u64 = 0x00000040;
+    const NX_R_CTRL:  u64 = 0x00002000;
+
+    let flags = unsafe { CGEventSourceFlagsState(COMBINED) };
+    let mut result = Vec::new();
+    if flags & NX_L_CTRL  != 0 { result.push(("modifier", "LCTRL")); }
+    if flags & NX_R_CTRL  != 0 { result.push(("modifier", "RCTRL")); }
+    if flags & NX_L_SHIFT != 0 { result.push(("modifier", "LSHFT")); }
+    if flags & NX_R_SHIFT != 0 { result.push(("modifier", "RSHFT")); }
+    if flags & NX_L_ALT   != 0 { result.push(("modifier", "LALT")); }
+    if flags & NX_R_ALT   != 0 { result.push(("modifier", "RALT")); }
+    if flags & NX_L_CMD   != 0 { result.push(("modifier", "LGUI")); }
+    if flags & NX_R_CMD   != 0 { result.push(("modifier", "RGUI")); }
+    result
+}
+
 fn keycode_to_zmk(key: &device_query::Keycode) -> Option<&'static str> {
     use device_query::Keycode::*;
     Some(match key {
@@ -26,14 +60,6 @@ fn keycode_to_zmk(key: &device_query::Keycode) -> Option<&'static str> {
         Escape => "ESC",
         Backspace => "BSPC",
         Delete => "DEL",
-        LShift => "LSHFT",
-        RShift => "RSHFT",
-        LControl => "LCTRL",
-        RControl => "RCTRL",
-        LAlt => "LALT",
-        RAlt => "RALT",
-        LMeta => "LGUI",
-        RMeta => "RGUI",
         Up => "UP",
         Down => "DOWN",
         Left => "LEFT",
@@ -55,6 +81,24 @@ fn keycode_to_zmk(key: &device_query::Keycode) -> Option<&'static str> {
         PageUp => "PG_UP",
         PageDown => "PG_DN",
         Insert => "INS",
+        // On macOS, modifier keys are handled via CGEventSourceKeyState for
+        // correct L/R distinction. On other platforms, handle them here.
+        #[cfg(not(target_os = "macos"))]
+        LShift => "LSHFT",
+        #[cfg(not(target_os = "macos"))]
+        RShift => "RSHFT",
+        #[cfg(not(target_os = "macos"))]
+        LControl => "LCTRL",
+        #[cfg(not(target_os = "macos"))]
+        RControl => "RCTRL",
+        #[cfg(not(target_os = "macos"))]
+        LAlt => "LALT",
+        #[cfg(not(target_os = "macos"))]
+        RAlt => "RALT",
+        #[cfg(not(target_os = "macos"))]
+        LMeta => "LGUI",
+        #[cfg(not(target_os = "macos"))]
+        RMeta => "RGUI",
         _ => return None,
     })
 }
@@ -300,6 +344,15 @@ async fn logout(state: State<'_, AppState>, app: AppHandle) -> Result<(), String
 }
 
 #[tauri::command]
+async fn show_main_window(app: AppHandle) -> Result<(), String> {
+    if let Some(win) = app.get_webview_window("main") {
+        win.show().map_err(|e| e.to_string())?;
+        win.set_focus().map_err(|e| e.to_string())?;
+    }
+    Ok(())
+}
+
+#[tauri::command]
 async fn toggle_widget(app: AppHandle) -> Result<(), String> {
     use tauri::{WebviewUrl, WebviewWindowBuilder};
 
@@ -378,7 +431,7 @@ async fn open_login(app: AppHandle) -> Result<(), String> {
     WebviewWindowBuilder::new(
         &app,
         "login",
-        WebviewUrl::External("https://my.moergo.com/glove80/".parse().unwrap()),
+        WebviewUrl::External("https://my.moergo.com/glove80/#/sign-in".parse().unwrap()),
     )
     .title("Glove80 - Login")
     .inner_size(1000.0, 700.0)
@@ -486,9 +539,11 @@ pub fn run() {
                 use device_query::{DeviceQuery, DeviceState};
                 let device_state = DeviceState::new();
                 let mut prev_keys: Vec<device_query::Keycode> = vec![];
+                #[cfg(target_os = "macos")]
+                let mut prev_mods: std::collections::HashSet<&'static str> = std::collections::HashSet::new();
                 loop {
                     let keys = device_state.get_keys();
-                    // Newly pressed
+                    // Newly pressed (regular keys)
                     for key in &keys {
                         if !prev_keys.contains(key) {
                             if let Some(zmk) = keycode_to_zmk(key) {
@@ -496,7 +551,7 @@ pub fn run() {
                             }
                         }
                     }
-                    // Newly released
+                    // Newly released (regular keys)
                     for key in &prev_keys {
                         if !keys.contains(key) {
                             if let Some(zmk) = keycode_to_zmk(key) {
@@ -505,13 +560,34 @@ pub fn run() {
                         }
                     }
                     prev_keys = keys;
+
+                    // macOS: supplement with CGEventSource modifier key state
+                    #[cfg(target_os = "macos")]
+                    {
+                        let mods: std::collections::HashSet<&'static str> = macos_modifier_zmk_keys()
+                            .into_iter()
+                            .map(|(_, zmk)| zmk)
+                            .collect();
+                        for zmk in &mods {
+                            if !prev_mods.contains(zmk) {
+                                let _ = key_handle.emit("key-down", *zmk);
+                            }
+                        }
+                        for zmk in &prev_mods {
+                            if !mods.contains(zmk) {
+                                let _ = key_handle.emit("key-up", *zmk);
+                            }
+                        }
+                        prev_mods = mods;
+                    }
+
                     std::thread::sleep(std::time::Duration::from_millis(16));
                 }
             });
 
             Ok(())
         })
-        .invoke_handler(tauri::generate_handler![check_auth, logout, get_layouts, get_layout_meta, get_layout_config, get_active_layout, set_active_layout, get_active_layout_config, toggle_widget, open_login, store_token])
+        .invoke_handler(tauri::generate_handler![check_auth, logout, get_layouts, get_layout_meta, get_layout_config, get_active_layout, set_active_layout, get_active_layout_config, toggle_widget, show_main_window, open_login, store_token])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

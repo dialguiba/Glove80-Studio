@@ -36,7 +36,18 @@
       "Bash(npx tauri icon src-tauri/icons/icon.png)",
       "Bash(sudo rm -rfv /Library/Caches/com.apple.iconservices.store)",
       "Bash(sudo find /private/var/folders/ -name com.apple.dock.iconcache -exec rm -rfv {} +)",
-      "Bash(killall Dock)"
+      "Bash(killall Dock)",
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "WebFetch(domain:github.com)",
+      "Bash(curl -s https://raw.githubusercontent.com/urob/zmk-helpers/main/include/zmk-helpers/key-labels/glove80.h)",
+      "Bash(curl -s https://raw.githubusercontent.com/moergo-sc/glove80-zmk-config/main/config/glove80.keymap)",
+      "mcp__plugin_engram_engram__mem_save",
+      "Bash(cargo build)",
+      "Bash(xargs ls -la)",
+      "Bash(git -C /Users/diego.aguirre02/dev/glove80-tauri log --oneline --all --grep=\"layer\\\\|key\\\\|behavior\\\\|Dev\\\\|Lower\\\\|Magic\")",
+      "Bash(git -C /Users/diego.aguirre02/dev/glove80-tauri show bd58d32 --stat)",
+      "Bash(git -C /Users/diego.aguirre02/dev/glove80-tauri show d241f8c --stat)",
+      "Bash(git -C /Users/diego.aguirre02/dev/glove80-tauri log --all --name-status --pretty=format:\"%H %s\")"
     ]
   }
 }
