@@ -284,6 +284,22 @@ export default function DashboardView({ layouts, loading, error, onRefresh, onLo
           </div>
         )}
 
+        {/* Loading skeleton */}
+        {loading && !sortedLayouts && (
+          <div className="flex flex-col gap-3">
+            <div className="h-3 w-32 bg-slate-700/50 rounded animate-pulse" />
+            {[...Array(4)].map((_, i) => (
+              <div key={i} className="glass-panel rounded-xl p-4 flex items-center gap-4 animate-pulse">
+                <div className="w-10 h-10 rounded-lg bg-slate-700/50" />
+                <div className="flex-1 flex flex-col gap-2">
+                  <div className="h-4 w-48 bg-slate-700/50 rounded" />
+                  <div className="h-3 w-24 bg-slate-700/30 rounded" />
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
         {/* Layouts grid */}
         {sortedLayouts && (
           <div className="flex flex-col gap-3">

@@ -50,6 +50,7 @@ function App() {
   async function fetchLayouts() {
     setLoading(true);
     setError(null);
+    setLayouts(null);
     try {
       const data = await invoke("get_layouts");
       setLayouts(data);
