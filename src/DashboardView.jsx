@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { invoke } from "@tauri-apps/api/core";
 import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
 
@@ -22,9 +23,122 @@ function relativeDate(val) {
   return rtf.format(Math.round(diffDays / 365), "year");
 }
 
+function LayoutCard({ id, name, tags, rel, full, isActive, isPinned, onSelect, onTogglePin, onSetActive }) {
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [menuPos, setMenuPos] = useState({ top: 0, right: 0 });
+  const btnRef = useRef(null);
+
+  useEffect(() => {
+    if (!menuOpen) return;
+    function handleClick(e) {
+      if (!btnRef.current?.contains(e.target)) setMenuOpen(false);
+    }
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, [menuOpen]);
+
+  function openMenu() {
+    const rect = btnRef.current.getBoundingClientRect();
+    setMenuPos({ top: rect.bottom + 4, right: window.innerWidth - rect.right });
+    setMenuOpen((v) => !v);
+  }
+
+  return (
+    <div
+      onClick={onSelect}
+      className={`group glass-panel rounded-xl px-4 py-3 flex items-center gap-3 transition-colors cursor-pointer ${
+        isActive ? "border-primary/50 bg-primary/5" : "hover:border-slate-600/60"
+      }`}
+    >
+      <span className="material-symbols-outlined text-xl shrink-0 text-primary">keyboard</span>
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-2">
+          <p className="font-semibold text-sm leading-snug">{name}</p>
+          {isActive && (
+            <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-primary/15 text-primary border border-primary/25 font-medium leading-none">
+              Active
+            </span>
+          )}
+        </div>
+        {tags.length > 0 && (
+          <div className="flex flex-wrap gap-1 mt-1">
+            {tags.map((tag) => (
+              <span key={tag} className="text-[10px] px-1.5 py-0.5 rounded-full bg-slate-700/50 text-slate-400 border border-slate-600/30 leading-none">
+                {tag}
+              </span>
+            ))}
+          </div>
+        )}
+      </div>
+      {rel && (
+        <div className="text-right shrink-0" title={full ?? undefined}>
+          <p className="text-slate-400 text-xs">{rel}</p>
+          <p className="text-slate-600 text-[10px] mt-0.5">{full}</p>
+        </div>
+      )}
+      {/* 3-dot menu */}
+      <div className="shrink-0" onClick={(e) => e.stopPropagation()}>
+        <button
+          ref={btnRef}
+          onClick={openMenu}
+          className="p-1 rounded text-slate-500 hover:text-slate-300 transition-colors cursor-pointer"
+          title="Options"
+        >
+          <span className="material-symbols-outlined leading-none" style={{ fontSize: 18 }}>more_vert</span>
+        </button>
+        {menuOpen && createPortal(
+          <div
+            className="fixed z-[9999] min-w-[160px] bg-slate-900 rounded-lg border border-slate-700/60 shadow-2xl py-1 flex flex-col"
+            style={{ top: menuPos.top, right: menuPos.right }}
+          >
+            <button
+              onClick={(e) => { onTogglePin(e); setMenuOpen(false); }}
+              className="flex items-center gap-2 px-3 py-2 text-xs text-slate-300 hover:bg-slate-700/60 transition-colors cursor-pointer text-left"
+            >
+              <span className="material-symbols-outlined text-amber-400/80 leading-none" style={{ fontSize: 15, fontVariationSettings: isPinned ? "'FILL' 1" : "'FILL' 0" }}>
+                push_pin
+              </span>
+              {isPinned ? "Remove from favorites" : "Add to favorites"}
+            </button>
+            {!isActive && (
+              <button
+                onClick={() => { onSetActive(); setMenuOpen(false); }}
+                className="flex items-center gap-2 px-3 py-2 text-xs text-slate-300 hover:bg-slate-700/60 transition-colors cursor-pointer text-left"
+              >
+                <span className="material-symbols-outlined text-primary/80 leading-none" style={{ fontSize: 15 }}>check_circle</span>
+                Set as active
+              </button>
+            )}
+          </div>,
+          document.body
+        )}
+      </div>
+    </div>
+  );
+}
+
 export default function DashboardView({ layouts, loading, error, onRefresh, onLogout, onSelectLayout, activeLayoutId, onSetActive }) {
   const [searchQuery, setSearchQuery] = useState("");
   const [sortBy, setSortBy] = useState("date");
+  const [view, setView] = useState("all"); // "all" | "favorites"
+  const [pinnedIds, setPinnedIds] = useState(() => {
+    try {
+      return new Set(JSON.parse(localStorage.getItem("pinnedLayouts") ?? "[]"));
+    } catch {
+      return new Set();
+    }
+  });
+
+  function togglePin(id, e) {
+    e.stopPropagation();
+    setPinnedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      localStorage.setItem("pinnedLayouts", JSON.stringify([...next]));
+      return next;
+    });
+  }
 
   const sortedLayouts = layouts
     ? [...layouts].sort((a, b) => {
@@ -40,8 +154,10 @@ export default function DashboardView({ layouts, loading, error, onRefresh, onLo
 
   const filteredLayouts = sortedLayouts
     ? sortedLayouts.filter((l) => {
-        if (!searchQuery.trim()) return true;
         const meta = l.layout_meta ?? l;
+        const id = meta.uuid ?? l.id;
+        if (view === "favorites" && !pinnedIds.has(id)) return false;
+        if (!searchQuery.trim()) return true;
         const title = (meta.title ?? "").toLowerCase();
         const tags = Array.isArray(meta.tags) ? meta.tags.join(" ").toLowerCase() : "";
         const q = searchQuery.toLowerCase();
@@ -95,6 +211,39 @@ export default function DashboardView({ layouts, loading, error, onRefresh, onLo
               Sign out
             </button>
           </div>
+        </div>
+
+        {/* Tabs */}
+        <div className="flex items-center gap-1 border-b border-slate-700/50 pb-0">
+          <button
+            onClick={() => setView("all")}
+            className={`flex items-center gap-1.5 px-4 py-2 text-sm font-medium border-b-2 transition-colors cursor-pointer -mb-px ${
+              view === "all"
+                ? "border-primary text-primary"
+                : "border-transparent text-slate-500 hover:text-slate-300"
+            }`}
+          >
+            <span className="material-symbols-outlined text-base">grid_view</span>
+            All
+          </button>
+          <button
+            onClick={() => setView("favorites")}
+            className={`flex items-center gap-1.5 px-4 py-2 text-sm font-medium border-b-2 transition-colors cursor-pointer -mb-px ${
+              view === "favorites"
+                ? "border-amber-400 text-amber-400"
+                : "border-transparent text-slate-500 hover:text-amber-400"
+            }`}
+          >
+            <span className="material-symbols-outlined text-base" style={{ fontVariationSettings: view === "favorites" ? "'FILL' 1" : "'FILL' 0" }}>push_pin</span>
+            Favorites
+            {pinnedIds.size > 0 && (
+              <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-bold leading-none ${
+                view === "favorites" ? "bg-amber-400/20 text-amber-300" : "bg-slate-700 text-slate-400"
+              }`}>
+                {pinnedIds.size}
+              </span>
+            )}
+          </button>
         </div>
 
         {/* Search */}
@@ -176,54 +325,21 @@ export default function DashboardView({ layouts, loading, error, onRefresh, onLo
                   ? dateObj.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })
                   : null;
 
+                const isPinned = pinnedIds.has(id);
                 return (
-                  <div
+                  <LayoutCard
                     key={id}
-                    onClick={() => onSelectLayout(id)}
-                    className={`glass-panel rounded-xl px-4 py-3 flex items-center gap-3 transition-colors cursor-pointer ${
-                      isActive ? "border-primary/50 bg-primary/5" : "hover:border-primary/40"
-                    }`}
-                  >
-                    <span className="material-symbols-outlined text-xl shrink-0 text-primary">
-                      keyboard
-                    </span>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <p className="font-semibold text-sm leading-snug">{name}</p>
-                        {isActive && (
-                          <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-primary/15 text-primary border border-primary/25 font-medium leading-none">
-                            Active
-                          </span>
-                        )}
-                      </div>
-                      {tags.length > 0 && (
-                        <div className="flex flex-wrap gap-1 mt-1">
-                          {tags.map((tag) => (
-                            <span key={tag} className="text-[10px] px-1.5 py-0.5 rounded-full bg-slate-700/50 text-slate-400 border border-slate-600/30 leading-none">
-                              {tag}
-                            </span>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                    {!isActive && (
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          onSetActive(id, name);
-                        }}
-                        className="text-xs px-2.5 py-1.5 rounded-lg border border-slate-600/40 text-slate-400 hover:text-primary hover:border-primary/30 hover:bg-primary/5 transition-colors cursor-pointer shrink-0"
-                      >
-                        Set active
-                      </button>
-                    )}
-                    {rel && (
-                      <div className="text-right shrink-0" title={full ?? undefined}>
-                        <p className="text-slate-400 text-xs">{rel}</p>
-                        <p className="text-slate-600 text-[10px] mt-0.5">{full}</p>
-                      </div>
-                    )}
-                  </div>
+                    id={id}
+                    name={name}
+                    tags={tags}
+                    rel={rel}
+                    full={full}
+                    isActive={isActive}
+                    isPinned={isPinned}
+                    onSelect={() => onSelectLayout(id)}
+                    onTogglePin={(e) => togglePin(id, e)}
+                    onSetActive={() => onSetActive(id, name)}
+                  />
                 );
               })}
             </div>
@@ -234,7 +350,21 @@ export default function DashboardView({ layouts, loading, error, onRefresh, onLo
         {!loading && sortedLayouts && filteredLayouts.length === 0 && (
           <div className="glass-panel rounded-xl p-10 flex flex-col items-center gap-3 text-slate-400">
             <span className="material-symbols-outlined text-4xl">keyboard_hide</span>
-            <p className="text-sm">{searchQuery.trim() ? "No layouts match your search" : "No layouts found"}</p>
+            <p className="text-sm">
+              {view === "favorites" && !searchQuery.trim()
+                ? "No pinned layouts yet — pin a layout to add it here"
+                : searchQuery.trim()
+                ? "No layouts match your search"
+                : "No layouts found"}
+            </p>
+            {view === "favorites" && !searchQuery.trim() && (
+              <button
+                onClick={() => setView("all")}
+                className="text-xs px-3 py-1.5 rounded-lg border border-slate-600/40 text-slate-400 hover:text-primary hover:border-primary/30 transition-colors cursor-pointer"
+              >
+                Browse all layouts
+              </button>
+            )}
           </div>
         )}
 
