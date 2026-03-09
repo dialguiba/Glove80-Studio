@@ -429,15 +429,15 @@ export default function WidgetView() {
                 value={keySearch}
                 onChange={(e) => setKeySearch(e.target.value)}
                 placeholder="Find key…"
-                className="w-full rounded px-6 py-0.5 text-xs text-slate-100 placeholder-slate-600 bg-slate-800/60 border border-slate-700/50 focus:border-amber-400/50 focus:outline-none transition-colors"
+                className="w-full rounded pl-7 pr-6 py-0.5 text-xs text-slate-100 placeholder-slate-600 bg-slate-800/60 border border-slate-700/50 focus:border-amber-400/50 focus:outline-none transition-colors"
               />
               {keySearch && (
                 <button
                   tabIndex={-1}
                   onClick={() => setKeySearch("")}
-                  className="absolute right-1.5 text-slate-500 hover:text-slate-300 cursor-pointer"
+                  className="absolute right-1.5 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300 cursor-pointer flex items-center"
                 >
-                  <span className="material-symbols-outlined text-xs">close</span>
+                  <span className="material-symbols-outlined" style={{fontSize: "10px"}}>close</span>
                 </button>
               )}
             </div>
